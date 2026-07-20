@@ -103,9 +103,9 @@ const MenuEditor = ({ slot, slotLabel, initialItems, pathsDatalistId }: Props) =
           <p className="text-sm text-muted">The {slotLabel.toLowerCase()} menu is empty. Add your first item below.</p>
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {items.map((item, index) => (
-            <div key={item.id} className="space-y-1.5">
+            <div key={item.id} className="space-y-2">
               <MenuItemRow
                 item={item}
                 depth={0}

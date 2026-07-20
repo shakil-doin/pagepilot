@@ -31,7 +31,7 @@ const LoginForm = () => {
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-hairline bg-surface p-6">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
@@ -42,7 +42,7 @@ const LoginForm = () => {
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
         <Input
           id="password"

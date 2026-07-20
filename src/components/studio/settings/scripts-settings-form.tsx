@@ -41,7 +41,7 @@ const ScriptsSettingsForm = () => {
       onSave={save}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="ga4-id">GA4 measurement ID</Label>
           <Input
             id="ga4-id"
@@ -50,7 +50,7 @@ const ScriptsSettingsForm = () => {
             onChange={(e) => setFields({ ga4Id: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="gtm-id">GTM container ID</Label>
           <Input
             id="gtm-id"
@@ -66,7 +66,7 @@ const ScriptsSettingsForm = () => {
       </p>
 
       {SCRIPT_AREAS.map((area) => (
-        <div key={area.key} className="space-y-1.5">
+        <div key={area.key} className="space-y-2">
           <Label htmlFor={`scripts-${area.key}`}>{area.label}</Label>
           <Textarea
             id={`scripts-${area.key}`}

@@ -66,7 +66,7 @@ const RedirectsPanel = () => {
           if (fromPath.trim() && toPath.trim()) createMutation.mutate();
         }}
       >
-        <div className="min-w-40 flex-1 space-y-1.5">
+        <div className="min-w-40 flex-1 space-y-2">
           <Label htmlFor="redirect-from">From path</Label>
           <Input
             id="redirect-from"
@@ -76,7 +76,7 @@ const RedirectsPanel = () => {
             className="font-mono text-xs"
           />
         </div>
-        <div className="min-w-40 flex-1 space-y-1.5">
+        <div className="min-w-40 flex-1 space-y-2">
           <Label htmlFor="redirect-to">To path</Label>
           <Input
             id="redirect-to"

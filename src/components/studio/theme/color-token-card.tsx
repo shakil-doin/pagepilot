@@ -32,7 +32,7 @@ const ColorTokenCard = ({ tokenKey, label, value, onChange }: Props) => (
       </button>
     </PopoverTrigger>
     <PopoverContent align="start" className="w-56 space-y-3">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor={`token-picker-${tokenKey}`}>{label}</Label>
         <input
           id={`token-picker-${tokenKey}`}
@@ -43,7 +43,7 @@ const ColorTokenCard = ({ tokenKey, label, value, onChange }: Props) => (
           className="h-9 w-full cursor-pointer rounded-md border border-hairline bg-surface"
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor={`token-hex-${tokenKey}`}>Hex value</Label>
         <Input
           id={`token-hex-${tokenKey}`}

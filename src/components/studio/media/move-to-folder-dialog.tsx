@@ -44,7 +44,7 @@ const MoveToFolderDialog = ({ open, onOpenChange, count, moving, onMove }: Props
           </DialogTitle>
           <DialogDescription>Pick the destination folder.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Folder</Label>
           <Select value={target} onValueChange={setTarget}>
             <SelectTrigger>

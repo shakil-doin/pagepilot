@@ -34,7 +34,7 @@ const EmailSettingsForm = () => {
       onSave={save}
     >
       <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="email-host">Host</Label>
           <Input
             id="email-host"
@@ -43,7 +43,7 @@ const EmailSettingsForm = () => {
             onChange={(e) => setFields({ host: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="email-port">Port</Label>
           <Input
             id="email-port"
@@ -55,7 +55,7 @@ const EmailSettingsForm = () => {
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="email-user">User</Label>
           <Input
             id="email-user"
@@ -64,7 +64,7 @@ const EmailSettingsForm = () => {
             onChange={(e) => setFields({ user: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="email-pass">Password</Label>
           <Input
             id="email-pass"
@@ -76,7 +76,7 @@ const EmailSettingsForm = () => {
           <p className="text-xs text-muted">Stored encrypted.</p>
         </div>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="email-from">From address</Label>
         <Input
           id="email-from"

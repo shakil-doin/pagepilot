@@ -32,7 +32,7 @@ const ListControl = ({ value, onChange, itemSchema, itemLabelKey }: Props) => {
   const itemProperties = itemSchema?.properties ?? {};
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {items.map((item, index) => {
         const open = openIndex === index;
         return (

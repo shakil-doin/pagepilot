@@ -25,7 +25,7 @@ const LinkControl = ({ value, onChange }: Props) => {
   const knownPage = (data?.pages ?? []).find((page) => page.path === link.href);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Select
         value={knownPage ? knownPage.path : link.href ? "__custom" : undefined}
         onValueChange={(v) => {

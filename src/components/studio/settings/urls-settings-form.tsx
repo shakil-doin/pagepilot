@@ -30,7 +30,7 @@ const UrlsSettingsForm = () => {
       saving={saving}
       onSave={save}
     >
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="canonical-base">Canonical base URL</Label>
         <Input
           id="canonical-base"
@@ -40,7 +40,7 @@ const UrlsSettingsForm = () => {
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>WWW policy</Label>
           <Select
             value={values.wwwPolicy}
@@ -56,7 +56,7 @@ const UrlsSettingsForm = () => {
           </Select>
           <p className="text-xs text-muted">Informational only; configure redirects at your host or CDN.</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Trailing slash</Label>
           <Select
             value={values.trailingSlash}

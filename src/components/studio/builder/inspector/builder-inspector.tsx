@@ -128,7 +128,7 @@ const BuilderInspector = ({ section, entry, blockers, onChange }: Props) => {
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <span className="block text-[11px] font-medium text-muted">Hide on</span>
             {BREAKPOINTS.map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 text-xs text-body">

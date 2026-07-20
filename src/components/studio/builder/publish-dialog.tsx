@@ -43,7 +43,7 @@ const PublishDialog = ({ open, onOpenChange, blockers, onPublish }: Props) => {
             </ul>
           </div>
         ) : null}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="publish-note">What changed? (optional)</Label>
           <Input
             id="publish-note"

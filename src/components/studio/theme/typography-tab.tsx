@@ -27,7 +27,7 @@ const TypographyTab = ({ tokens, onChange }: Props) => {
   return (
     <div className="max-w-xl space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Heading font</Label>
           <Select value={tokens.typography.headingFont} onValueChange={(value) => setTypography({ headingFont: value })}>
             <SelectTrigger>
@@ -42,7 +42,7 @@ const TypographyTab = ({ tokens, onChange }: Props) => {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Body font</Label>
           <Select value={tokens.typography.bodyFont} onValueChange={(value) => setTypography({ bodyFont: value })}>
             <SelectTrigger>
@@ -59,7 +59,7 @@ const TypographyTab = ({ tokens, onChange }: Props) => {
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Heading weight</Label>
         <Select
           value={String(tokens.typography.headingWeight)}
@@ -78,7 +78,7 @@ const TypographyTab = ({ tokens, onChange }: Props) => {
         </Select>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Type scale</Label>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {Object.entries(tokens.typography.scale).map(([key, value]) => (

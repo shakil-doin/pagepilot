@@ -19,12 +19,17 @@ pool.on("error", (err) => console.error("[pg pool]", err.message));
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Codes/messages that mean "the connection was stale", not "the query is wrong".
+// Errors that mean "the connection was stale/asleep", not "the query is wrong".
+// Prisma P1xxx are all connection/engine-level; P2024 is a pool timeout. Query
+// errors (P2002 unique, P2025 not-found, …) are P2xxx and must NOT be retried.
 const isTransient = (err: unknown): boolean => {
-  const code = (err as { code?: string })?.code;
-  if (code && ["P1001", "P1002", "P1017", "P2024"].includes(code)) return true;
-  const message = String((err as { message?: string })?.message ?? "");
-  return /connection.*(closed|terminated|reset)|ECONNRESET|ECONNREFUSED|Timed out fetching a connection/i.test(message);
+  const e = err as { code?: string; name?: string; message?: string };
+  if (e?.name === "PrismaClientInitializationError") return true;
+  if (e?.code && (e.code.startsWith("P1") || e.code === "P2024")) return true;
+  const message = String(e?.message ?? "");
+  return /connection.*(closed|terminated|reset|refused)|ECONNRESET|ECONNREFUSED|ETIMEDOUT|Timed out fetching a connection|Can't reach database|terminating connection|server closed the connection/i.test(
+    message,
+  );
 };
 
 const createClient = () =>
@@ -33,13 +38,15 @@ const createClient = () =>
     query: {
       async $allOperations({ args, query }) {
         let lastError: unknown;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        // Serverless Postgres (Neon) can take a few seconds to wake from idle,
+        // so back off up to ~4.5s total before giving up.
+        for (let attempt = 0; attempt < 5; attempt++) {
           try {
             return await query(args);
           } catch (err) {
             if (!isTransient(err)) throw err;
             lastError = err;
-            await sleep(150 * (attempt + 1)); // let the pool hand out a fresh connection
+            await sleep(Math.min(250 * 2 ** attempt, 2000)); // 250, 500, 1000, 2000ms
           }
         }
         throw lastError;

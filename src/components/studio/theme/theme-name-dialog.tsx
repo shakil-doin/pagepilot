@@ -45,7 +45,7 @@ const ThemeNameDialog = ({ open, onOpenChange, title, description, submitLabel, 
             onSubmit(name.trim());
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="theme-name">Name</Label>
             <Input
               id="theme-name"

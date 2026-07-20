@@ -51,7 +51,7 @@ const ButtonsTab = ({ tokens, onChange }: Props) => {
           />
 
           <div className="grid grid-cols-2 items-end gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Radius</Label>
               <Select value={button.radius ?? "md"} onValueChange={(value) => setVariant(variant, { radius: value })}>
                 <SelectTrigger className="h-8 text-xs">

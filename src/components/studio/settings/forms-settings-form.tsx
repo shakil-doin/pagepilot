@@ -24,7 +24,7 @@ const FormsSettingsForm = () => {
       saving={saving}
       onSave={save}
     >
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="notify-email">Notification email</Label>
         <Input
           id="notify-email"
@@ -34,7 +34,7 @@ const FormsSettingsForm = () => {
           onChange={(e) => setFields({ notifyEmail: e.target.value })}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="webhook-url">Webhook URL</Label>
         <Input
           id="webhook-url"

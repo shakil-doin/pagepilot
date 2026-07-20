@@ -59,7 +59,7 @@ const NewPostDialog = ({ open, onOpenChange }: Props) => {
             createMutation.mutate();
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="post-title">Title</Label>
             <Input
               id="post-title"
@@ -70,7 +70,7 @@ const NewPostDialog = ({ open, onOpenChange }: Props) => {
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="post-slug">Slug</Label>
             <Input
               id="post-slug"

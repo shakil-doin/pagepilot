@@ -143,7 +143,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
         ogImageUrl={ogImageUrl}
       />
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="seo-meta-title">Meta title</Label>
           <CharCount length={metaTitle.length} limit={60} />
@@ -151,7 +151,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
         <Input id="seo-meta-title" value={metaTitle} onChange={(e) => setMetaTitle(e.target.value)} placeholder={titleFallback} />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="seo-meta-description">Meta description</Label>
           <CharCount length={metaDescription.length} limit={160} />
@@ -165,7 +165,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
         />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="seo-canonical">Canonical URL</Label>
         <Input
           id="seo-canonical"
@@ -176,7 +176,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
         />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Robots</Label>
         <Select value={robotsPreset} onValueChange={setRobotsPreset}>
           <SelectTrigger>
@@ -202,17 +202,17 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
         ) : null}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="seo-og-title">OG title</Label>
         <Input id="seo-og-title" value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} placeholder={metaTitle || titleFallback} />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="seo-og-description">OG description</Label>
         <Textarea id="seo-og-description" value={ogDescription} onChange={(e) => setOgDescription(e.target.value)} rows={2} />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>OG image</Label>
         {ogImageUrl ? (
           <div className="relative overflow-hidden rounded-lg border border-hairline">
@@ -238,7 +238,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>OG type</Label>
           <Select value={ogType} onValueChange={setOgType}>
             <SelectTrigger>
@@ -250,7 +250,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Twitter card</Label>
           <Select value={twitterCard} onValueChange={setTwitterCard}>
             <SelectTrigger>
@@ -264,7 +264,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="seo-structured-data">Structured data (JSON-LD)</Label>
         <Textarea
           id="seo-structured-data"
@@ -284,7 +284,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="seo-priority">Sitemap priority</Label>
           <Input
             id="seo-priority"
@@ -297,7 +297,7 @@ const SeoPanel = ({ value, onSave, titleFallback, urlPath }: Props) => {
             placeholder="0.5"
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Change frequency</Label>
           <Select value={sitemapChangeFreq} onValueChange={setSitemapChangeFreq}>
             <SelectTrigger>

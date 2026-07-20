@@ -47,7 +47,7 @@ const MaintenanceSettingsForm = () => {
           onCheckedChange={(checked) => setFields({ enabled: checked })}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="maintenance-message">Message</Label>
         <Textarea
           id="maintenance-message"

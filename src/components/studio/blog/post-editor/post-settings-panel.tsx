@@ -108,7 +108,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
         ) : null}
 
         {post.status === "DRAFT" || post.status === "ARCHIVED" ? (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="post-schedule" className="text-xs">
               Schedule
             </Label>
@@ -181,7 +181,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
         </Button>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="post-slug-input">Slug</Label>
         <Input
           id="post-slug-input"
@@ -195,7 +195,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
         <p className="text-xs text-muted">/blog/{slug || "…"}</p>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="post-excerpt">Excerpt</Label>
         <Textarea
           id="post-excerpt"
@@ -209,7 +209,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
         />
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Cover image</Label>
         {post.coverImage ? (
           <div className="relative overflow-hidden rounded-lg border border-hairline">
@@ -231,7 +231,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
         </Button>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Author</Label>
         <p className="rounded-lg border border-hairline bg-app px-3 py-2 text-sm text-body">
           {post.author?.name ?? "Unknown"}
@@ -240,7 +240,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
 
       <Separator />
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Categories</Label>
         {(categoriesQuery.data ?? []).length === 0 ? (
           <p className="text-xs text-muted">No categories yet. Add some from the blog screen.</p>
@@ -261,7 +261,7 @@ const PostSettingsPanel = ({ post }: { post: StudioPost }) => {
         )}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Tags</Label>
         {(tagsQuery.data ?? []).length === 0 ? (
           <p className="text-xs text-muted">No tags yet. Add some from the blog screen.</p>

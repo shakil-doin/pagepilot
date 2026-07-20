@@ -66,7 +66,7 @@ const NewGlobalWidgetDialog = ({ open, onOpenChange }: Props) => {
             createMutation.mutate();
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="global-widget-name">Name</Label>
             <Input
               id="global-widget-name"
@@ -77,7 +77,7 @@ const NewGlobalWidgetDialog = ({ open, onOpenChange }: Props) => {
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Widget type</Label>
             <Select value={type} onValueChange={setType}>
               <SelectTrigger>

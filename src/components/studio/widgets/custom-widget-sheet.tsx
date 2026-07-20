@@ -105,16 +105,16 @@ const CustomWidgetSheet = ({ widgetId, onClose }: Props) => {
               editing is the current advanced path.
             </p>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="custom-name">Name</Label>
               <Input id="custom-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="custom-description">Description</Label>
               <Input id="custom-description" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="custom-tree">Tree (JSON)</Label>
               <Textarea
                 id="custom-tree"
@@ -126,7 +126,7 @@ const CustomWidgetSheet = ({ widgetId, onClose }: Props) => {
               <p className="text-xs text-muted">An array of section nodes, same shape as a page revision.</p>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="custom-exposed">Exposed props (JSON)</Label>
               <Textarea
                 id="custom-exposed"

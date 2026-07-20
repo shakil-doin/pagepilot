@@ -112,7 +112,7 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
             </SheetHeader>
 
             {media.kind === "IMAGE" ? (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <FocalPointPicker
                   url={media.url}
                   alt={media.alt ?? media.filename}
@@ -129,12 +129,12 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
             )}
 
             <div className="space-y-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="media-filename">Filename</Label>
                 <Input id="media-filename" value={filename} onChange={(e) => setFilename(e.target.value)} />
               </div>
               {media.kind === "IMAGE" ? (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="media-alt">Alt text</Label>
                   <Input
                     id="media-alt"
@@ -151,7 +151,7 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
                   ) : null}
                 </div>
               ) : null}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="media-caption">Caption</Label>
                 <Textarea
                   id="media-caption"
@@ -172,7 +172,7 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
 
             <Separator />
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <p className="text-xs font-semibold tracking-wide text-muted uppercase">File info</p>
               <InfoRow label="Size" value={formatBytes(media.sizeBytes)} />
               {media.width && media.height ? <InfoRow label="Dimensions" value={`${media.width} × ${media.height}px`} /> : null}

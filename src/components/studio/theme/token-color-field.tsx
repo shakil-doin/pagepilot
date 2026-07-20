@@ -24,7 +24,7 @@ const TokenColorField = ({ label, colors, value, allowNone = false, onChange }: 
   const resolved = resolveTokenColor({ colors } as ThemeTokens, value);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label>{label}</Label>
       <div className="flex items-center gap-2">
         <span

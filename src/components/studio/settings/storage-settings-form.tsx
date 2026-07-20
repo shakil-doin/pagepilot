@@ -36,7 +36,7 @@ const StorageSettingsForm = () => {
         values when both are set. Without ImageKit configured, uploads fall back to local disk (development only).
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="storage-public-key">Public key</Label>
           <Input
             id="storage-public-key"
@@ -46,7 +46,7 @@ const StorageSettingsForm = () => {
             onChange={(e) => setFields({ publicKey: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="storage-private-key">Private key</Label>
           <Input
             id="storage-private-key"
@@ -59,7 +59,7 @@ const StorageSettingsForm = () => {
           <p className="text-xs text-muted">Stored encrypted.</p>
         </div>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="storage-url-endpoint">URL endpoint</Label>
         <Input
           id="storage-url-endpoint"
@@ -68,7 +68,7 @@ const StorageSettingsForm = () => {
           onChange={(e) => setFields({ urlEndpoint: e.target.value })}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="storage-folder">Folder</Label>
         <Input
           id="storage-folder"

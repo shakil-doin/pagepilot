@@ -93,12 +93,12 @@ const GlobalWidgetSheet = ({ widgetId, onClose }: Props) => {
               <SheetDescription className="font-mono text-xs">{data.widget.type}</SheetDescription>
             </SheetHeader>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="global-name">Name</Label>
               <Input id="global-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="global-props">Props (JSON)</Label>
               <Textarea
                 id="global-props"

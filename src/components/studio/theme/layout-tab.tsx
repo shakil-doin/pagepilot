@@ -21,7 +21,7 @@ const FieldGrid = ({ children }: { children: React.ReactNode }) => (
 
 const LayoutTab = ({ tokens, onChange }: Props) => (
   <div className="max-w-xl space-y-5">
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label>Container</Label>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -47,7 +47,7 @@ const LayoutTab = ({ tokens, onChange }: Props) => (
       </div>
     </div>
 
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label>Corner radii</Label>
       <FieldGrid>
         {Object.entries(tokens.radii).map(([key, value]) => (
@@ -65,7 +65,7 @@ const LayoutTab = ({ tokens, onChange }: Props) => (
       </FieldGrid>
     </div>
 
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label>Section spacing</Label>
       <FieldGrid>
         {Object.entries(tokens.spacing).map(([key, value]) => (

@@ -30,7 +30,7 @@ const GeneralSettingsForm = () => {
       saving={saving}
       onSave={save}
     >
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="site-name">Site name</Label>
         <Input
           id="site-name"
@@ -39,7 +39,7 @@ const GeneralSettingsForm = () => {
           onChange={(e) => setFields({ siteName: e.target.value })}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="site-tagline">Tagline</Label>
         <Input
           id="site-tagline"
@@ -49,7 +49,7 @@ const GeneralSettingsForm = () => {
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="site-logo">Logo URL</Label>
           <Input
             id="site-logo"
@@ -58,7 +58,7 @@ const GeneralSettingsForm = () => {
             onChange={(e) => setFields({ logoUrl: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="site-favicon">Favicon URL</Label>
           <Input
             id="site-favicon"
@@ -69,7 +69,7 @@ const GeneralSettingsForm = () => {
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="site-language">Language</Label>
           <Input
             id="site-language"
@@ -78,7 +78,7 @@ const GeneralSettingsForm = () => {
             onChange={(e) => setFields({ language: e.target.value })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="site-timezone">Timezone</Label>
           <Input
             id="site-timezone"

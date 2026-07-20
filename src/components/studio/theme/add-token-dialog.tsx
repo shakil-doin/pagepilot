@@ -65,7 +65,7 @@ const AddTokenDialog = ({ open, onOpenChange, existingKeys, onAdd }: Props) => {
             submit();
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="token-label">Label</Label>
             <Input
               id="token-label"
@@ -79,7 +79,7 @@ const AddTokenDialog = ({ open, onOpenChange, existingKeys, onAdd }: Props) => {
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="token-key">Key</Label>
             <Input
               id="token-key"
@@ -94,7 +94,7 @@ const AddTokenDialog = ({ open, onOpenChange, existingKeys, onAdd }: Props) => {
               spellCheck={false}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="token-value">Value</Label>
             <div className="flex items-center gap-2">
               <input

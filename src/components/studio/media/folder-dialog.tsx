@@ -66,7 +66,7 @@ const FolderDialog = ({ open, onOpenChange, renaming = null, parentId = null, pa
             mutation.mutate();
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="folder-name">Name</Label>
             <Input
               id="folder-name"

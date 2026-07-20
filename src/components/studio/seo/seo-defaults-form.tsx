@@ -79,7 +79,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
         <CardTitle className="text-sm">Site-wide defaults</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="seo-title-template">Title template</Label>
           <Input
             id="seo-title-template"
@@ -90,7 +90,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
           <p className="text-xs text-muted">%s is replaced with the page or post title.</p>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="seo-default-description">Default description</Label>
           <Textarea
             id="seo-default-description"
@@ -101,7 +101,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Default OG image</Label>
           {defaultOgImageUrl ? (
             <div className="relative max-w-xs overflow-hidden rounded-lg border border-hairline">
@@ -124,11 +124,11 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="seo-twitter">Twitter handle</Label>
             <Input id="seo-twitter" value={twitterHandle} onChange={(e) => setTwitterHandle(e.target.value)} placeholder="@pagepilot" />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="seo-canonical-base">Canonical base URL</Label>
             <Input
               id="seo-canonical-base"
@@ -141,7 +141,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="seo-verify-google">Google verification</Label>
             <Input
               id="seo-verify-google"
@@ -150,7 +150,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
               className="font-mono text-xs"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="seo-verify-bing">Bing verification</Label>
             <Input
               id="seo-verify-bing"
@@ -161,7 +161,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="seo-org-jsonld">Organization JSON-LD</Label>
           <Textarea
             id="seo-org-jsonld"
@@ -173,7 +173,7 @@ const SeoDefaultsFields = ({ initial }: { initial: SeoDefaultsValue | null }) =>
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="seo-robots-txt">robots.txt</Label>
           <Textarea
             id="seo-robots-txt"

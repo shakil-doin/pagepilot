@@ -75,7 +75,7 @@ const InviteUserDialog = ({ open, onOpenChange }: Props) => {
 
         {result ? (
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="invite-link">Invite link</Label>
               <div className="flex gap-2">
                 <Input id="invite-link" readOnly value={result.inviteLink} className="font-mono text-xs" />
@@ -103,7 +103,7 @@ const InviteUserDialog = ({ open, onOpenChange }: Props) => {
               inviteMutation.mutate();
             }}
           >
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="invite-name">Name</Label>
               <Input
                 id="invite-name"
@@ -114,7 +114,7 @@ const InviteUserDialog = ({ open, onOpenChange }: Props) => {
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="invite-email">Email</Label>
               <Input
                 id="invite-email"
@@ -125,7 +125,7 @@ const InviteUserDialog = ({ open, onOpenChange }: Props) => {
                 required
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Role</Label>
               <Select value={role} onValueChange={(value) => setRole(value as (typeof ROLES)[number])}>
                 <SelectTrigger>

@@ -42,7 +42,7 @@ const SetPasswordForm = () => {
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-hairline bg-surface p-6">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="password">New password</Label>
         <Input
           id="password"
@@ -54,7 +54,7 @@ const SetPasswordForm = () => {
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="confirm">Confirm password</Label>
         <Input
           id="confirm"

@@ -54,7 +54,7 @@ const NewCustomWidgetDialog = ({ open, onOpenChange, onCreated }: Props) => {
             createMutation.mutate();
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="custom-widget-name">Name</Label>
             <Input
               id="custom-widget-name"
@@ -65,7 +65,7 @@ const NewCustomWidgetDialog = ({ open, onOpenChange, onCreated }: Props) => {
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="custom-widget-description">Description</Label>
             <Input
               id="custom-widget-description"

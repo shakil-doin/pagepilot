@@ -59,7 +59,7 @@ const NewPageDialog = ({ open, onOpenChange }: Props) => {
             createMutation.mutate();
           }}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="page-title">Title</Label>
             <Input
               id="page-title"
@@ -70,7 +70,7 @@ const NewPageDialog = ({ open, onOpenChange }: Props) => {
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="page-path">Path</Label>
             <Input
               id="page-path"

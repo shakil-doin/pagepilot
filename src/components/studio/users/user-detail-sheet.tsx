@@ -146,7 +146,7 @@ const UserDetailSheet = ({ userId, onClose }: Props) => {
               <SheetDescription>{user.email}</SheetDescription>
             </SheetHeader>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Role</Label>
               <Select value={user.role} onValueChange={(value) => setPendingRole(value as Role)}>
                 <SelectTrigger>
@@ -163,7 +163,7 @@ const UserDetailSheet = ({ userId, onClose }: Props) => {
               <p className="text-xs text-muted">Changing the role signs the user out everywhere.</p>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Account status</Label>
               <div>
                 <Button
@@ -176,7 +176,7 @@ const UserDetailSheet = ({ userId, onClose }: Props) => {
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="user-password">Set password</Label>
               <div className="flex gap-2">
                 <Input
