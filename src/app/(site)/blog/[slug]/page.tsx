@@ -12,8 +12,12 @@ import { formatDate } from "@/lib/utils";
 type Params = Promise<{ slug: string }>;
 
 export const generateStaticParams = async () => {
-  const posts = await listPublishedSlugs();
-  return posts.map((post) => ({ slug: post.slug }));
+  try {
+    const posts = await listPublishedSlugs();
+    return posts.map((post) => ({ slug: post.slug }));
+  } catch {
+    return [];
+  }
 };
 
 export const generateMetadata = async ({ params }: { params: Params }): Promise<Metadata> => {

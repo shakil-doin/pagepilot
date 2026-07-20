@@ -15,8 +15,12 @@ type Params = { slug?: string[] };
 const pathFromSlug = (slug?: string[]) => (slug && slug.length > 0 ? `/${slug.join("/")}` : "/");
 
 export const generateStaticParams = async (): Promise<Params[]> => {
-  const pages = await listPublishedPathsCached();
-  return pages.map((page) => ({ slug: page.path === "/" ? [] : page.path.slice(1).split("/") }));
+  try {
+    const pages = await listPublishedPathsCached();
+    return pages.map((page) => ({ slug: page.path === "/" ? [] : page.path.slice(1).split("/") }));
+  } catch {
+    return [];
+  }
 };
 
 // Draft mode is the only dynamic path: the builder iframe and Studio previews

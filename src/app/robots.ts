@@ -3,7 +3,8 @@ import { getSettingCached, DEFAULT_SEO, type SeoDefaults } from "@/modules/setti
 import { APP } from "@/config/app.config";
 
 const robots = async (): Promise<MetadataRoute.Robots> => {
-  const defaults = ((await getSettingCached("seo.defaults")) as SeoDefaults | null) ?? DEFAULT_SEO;
+  const defaults =
+    ((await getSettingCached("seo.defaults").catch(() => null)) as SeoDefaults | null) ?? DEFAULT_SEO;
   const base = (defaults.canonicalBaseUrl || APP.url).replace(/\/$/, "");
 
   return {
