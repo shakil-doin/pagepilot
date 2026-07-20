@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { PP_INSERT_MIME } from "@/components/studio/builder/builder-palette";
 
@@ -18,6 +18,8 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   empty: boolean;
+  // Bumped by the builder after each save; drives a flicker-free reload.
+  reloadKey: number;
   onDropInsert?: (payload: string, target: DropTarget) => void;
   onSectionAction?: (id: string, action: SectionAction) => void;
 };
@@ -28,11 +30,9 @@ const DEVICE_WIDTH: Record<Device, string> = {
   mobile: "390px",
 };
 
-// Base editor chrome injected into the iframe document: hover outline + name
-// badge on every section, plus styles for the toolbar and drop indicator that
-// the controller below positions. All of this lives INSIDE the iframe so it
-// shares the content's coordinate space — no parent→iframe coordinate math,
-// so controls stay glued to their section through scroll and resize.
+// Editor chrome injected into the iframe document: hover outline + name badge,
+// selection toolbar, and the drop-gap. All INSIDE the iframe so it shares the
+// content's coordinate space — controls stay glued through scroll and resize.
 const EDITOR_CSS = `
 [data-pp-section] { position: relative; }
 [data-pp-section]:hover { outline: 2px dashed rgba(79,70,229,.55); outline-offset: -2px; cursor: pointer; }
@@ -54,16 +54,12 @@ const EDITOR_CSS = `
 }
 #pp-ed-toolbar button:hover { background: rgba(255,255,255,.22); }
 #pp-ed-toolbar button[disabled] { opacity: .4; cursor: default; }
-#pp-ed-drop {
-  display: none; position: fixed; z-index: 2147483500; height: 5px;
-  background: #4F46E5; border-radius: 3px; box-shadow: 0 0 0 4px rgba(79,70,229,.22);
-  pointer-events: none;
+#pp-ed-gap {
+  height: 92px; margin: 8px 12px; border: 2px dashed #4F46E5; border-radius: 10px;
+  background: rgba(79,70,229,.09); display: flex; align-items: center; justify-content: center;
+  color: #4F46E5; font: 600 12px/1 ui-sans-serif, system-ui; box-sizing: border-box;
 }
-#pp-ed-drop.on { display: block; }
-#pp-ed-drop::before {
-  content: ''; position: absolute; left: -4px; top: -3px; width: 11px; height: 11px;
-  border-radius: 50%; background: #4F46E5;
-}
+#pp-ed-gap::after { content: 'Drop here'; }
 .pp-slot { min-height: 52px; }
 .pp-slot:empty {
   display: flex; align-items: center; justify-content: center;
@@ -87,8 +83,6 @@ type Handlers = {
   onSectionAction?: (id: string, action: SectionAction) => void;
 };
 
-// Imperative controller that lives against one iframe document. Rebuilt on every
-// iframe load; the parent talks to it through editorRef.
 type EditorController = {
   selectExternal: (id: string | null) => void;
   destroy: () => void;
@@ -114,19 +108,25 @@ const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorC
     `<button data-a="delete" title="Delete">✕</button>`;
   doc.body.appendChild(toolbar);
 
-  const dropBar = doc.createElement("div");
-  dropBar.id = "pp-ed-drop";
-  doc.body.appendChild(dropBar);
+  // The drop-gap is a real in-flow element inserted between sections during a
+  // drag, so content physically opens up to receive the widget (Elementor feel).
+  const gap = doc.createElement("div");
+  gap.id = "pp-ed-gap";
 
-  // Top-level sections only (nested widgets inside columns are also stamped, but
-  // the sections array the parent edits is the top level).
+  // Top-level sections only (nested widgets inside columns are also stamped).
   const tops = (): HTMLElement[] =>
     Array.from(doc.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
-      (el) => !el.parentElement?.closest("[data-pp-section]"),
+      (el) => !el.parentElement?.closest("[data-pp-slot]") && !el.parentElement?.closest("[data-pp-section]"),
+    );
+
+  const childSections = (slotEl: HTMLElement): HTMLElement[] =>
+    Array.from(slotEl.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
+      (el) => el.parentElement?.closest("[data-pp-slot]") === slotEl,
     );
 
   let curSel: string | null = handlersRef.current.selectedId;
   let pendingTarget: DropTarget = { index: 0 };
+  let gapKey = "";
 
   const positionToolbar = () => {
     if (!curSel) return toolbar.classList.remove("on");
@@ -147,32 +147,20 @@ const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorC
     if (scroll && id && id !== curSel) {
       const el = tops().find((s) => s.getAttribute("data-pp-section") === id);
       const r = el?.getBoundingClientRect();
-      if (r && (r.top < 0 || r.bottom > win.innerHeight)) {
-        el!.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      if (r && (r.top < 0 || r.bottom > win.innerHeight)) el!.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     curSel = id;
     positionToolbar();
   };
 
-  // Direct section children of a container element (a slot or the document).
-  const childSections = (container: ParentNode): HTMLElement[] =>
-    Array.from(container.querySelectorAll<HTMLElement>("[data-pp-section]")).filter((el) => {
-      const parentSlot = el.parentElement?.closest("[data-pp-slot]");
-      return container instanceof Element && container.hasAttribute("data-pp-slot")
-        ? parentSlot === container
-        : !parentSlot && !el.parentElement?.closest("[data-pp-section]");
-    });
-
-  // Insertion geometry (indicator bar) + the drop target for a pointer position.
-  // If the pointer is over a container's column slot, the target is inside it.
-  const boundaryFor = (
+  // Resolve a pointer to a drop target plus where to place the gap element.
+  const resolveDrop = (
     clientY: number,
     eventTarget: EventTarget | null,
-  ): { y: number; left: number; width: number; target: DropTarget } => {
-    const slotEl = (eventTarget as HTMLElement | null)?.closest?.("[data-pp-slot]") ?? null;
-    const container: ParentNode = slotEl ?? doc;
-    const list = childSections(container);
+  ): { target: DropTarget; container: HTMLElement; refNode: HTMLElement | null } => {
+    const slotEl = ((eventTarget as HTMLElement | null)?.closest?.("[data-pp-slot]") ?? null) as HTMLElement | null;
+    const list = slotEl ? childSections(slotEl) : tops();
+    const parent = slotEl ?? tops()[0]?.parentElement ?? doc.body;
     const slot = slotEl
       ? (() => {
           const [sectionId, slotIndex] = slotEl.getAttribute("data-pp-slot")!.split(":");
@@ -180,22 +168,32 @@ const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorC
         })()
       : undefined;
 
-    if (list.length === 0) {
-      const r = slotEl ? slotEl.getBoundingClientRect() : { top: 12, left: 12, width: win.innerWidth - 24 };
-      return { y: r.top + 2, left: r.left, width: r.width, target: { slot, index: 0 } };
+    // Ignore the gap itself when measuring.
+    const measured = list.filter((el) => el.id !== "pp-ed-gap");
+    for (let i = 0; i < measured.length; i++) {
+      const r = measured[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return { target: { slot, index: i }, container: parent as HTMLElement, refNode: measured[i] };
     }
-    for (let i = 0; i < list.length; i++) {
-      const r = list[i].getBoundingClientRect();
-      if (clientY < r.top + r.height / 2) return { y: r.top, left: r.left, width: r.width, target: { slot, index: i } };
-    }
-    const last = list[list.length - 1].getBoundingClientRect();
-    return { y: last.bottom, left: last.left, width: last.width, target: { slot, index: list.length } };
+    return { target: { slot, index: measured.length }, container: parent as HTMLElement, refNode: null };
   };
 
-  const dragPayload = (): string | undefined =>
-    (win.parent as unknown as { __PP_DRAG__?: string }).__PP_DRAG__;
+  const showGap = (drop: ReturnType<typeof resolveDrop>) => {
+    const key = `${drop.target.slot?.sectionId ?? "root"}:${drop.target.slot?.slotIndex ?? ""}:${drop.target.index}`;
+    if (key === gapKey && gap.isConnected) return; // stable — avoid layout thrash
+    gapKey = key;
+    if (drop.refNode?.parentNode) drop.refNode.parentNode.insertBefore(gap, drop.refNode);
+    else drop.container.appendChild(gap);
+  };
 
-  // --- listeners ---
+  const hideGap = () => {
+    gap.remove();
+    gapKey = "";
+  };
+
+  const dragPayload = (): string | undefined => (win.parent as unknown as { __PP_DRAG__?: string }).__PP_DRAG__;
+  const isOurDrag = (event: DragEvent) =>
+    Boolean(dragPayload()) || (event.dataTransfer?.types.includes(PP_INSERT_MIME) ?? false);
+
   const onClick = (event: MouseEvent) => {
     const el = (event.target as HTMLElement).closest("[data-pp-section]");
     if (!el) return;
@@ -214,35 +212,27 @@ const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorC
     handlersRef.current.onSectionAction?.(curSel, btn.getAttribute("data-a") as SectionAction);
   };
 
-  const isOurDrag = (event: DragEvent) =>
-    Boolean(dragPayload()) || (event.dataTransfer?.types.includes(PP_INSERT_MIME) ?? false);
-
   const onDragOver = (event: DragEvent) => {
     if (!isOurDrag(event)) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-    const b = boundaryFor(event.clientY, event.target);
-    pendingTarget = b.target;
-    dropBar.style.top = `${b.y - 2}px`;
-    dropBar.style.left = `${b.left}px`;
-    dropBar.style.width = `${b.width}px`;
-    dropBar.classList.add("on");
+    const drop = resolveDrop(event.clientY, event.target);
+    pendingTarget = drop.target;
+    showGap(drop);
   };
-
-  const hideDrop = () => dropBar.classList.remove("on");
 
   const onDrop = (event: DragEvent) => {
     if (!isOurDrag(event)) return;
     event.preventDefault();
-    hideDrop();
+    hideGap();
     const payload = dragPayload() || event.dataTransfer?.getData(PP_INSERT_MIME);
     if (payload) handlersRef.current.onDropInsert?.(payload, pendingTarget);
   };
 
   const onDragLeave = (event: DragEvent) => {
-    // Only when the pointer actually leaves the document, not on child crossings.
-    if (!event.relatedTarget) hideDrop();
+    if (!event.relatedTarget) hideGap();
   };
+  const onDragEnd = () => hideGap();
 
   const reposition = () => positionToolbar();
 
@@ -251,6 +241,7 @@ const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorC
   doc.addEventListener("dragover", onDragOver);
   doc.addEventListener("drop", onDrop);
   doc.addEventListener("dragleave", onDragLeave);
+  doc.addEventListener("dragend", onDragEnd);
   win.addEventListener("scroll", reposition, true);
   win.addEventListener("resize", reposition);
 
@@ -263,35 +254,68 @@ const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorC
       doc.removeEventListener("dragover", onDragOver);
       doc.removeEventListener("drop", onDrop);
       doc.removeEventListener("dragleave", onDragLeave);
+      doc.removeEventListener("dragend", onDragEnd);
       win.removeEventListener("scroll", reposition, true);
       win.removeEventListener("resize", reposition);
     },
   };
 };
 
-// The canvas is an iframe of the real site renderer in draft mode: what you see
-// is exactly what ships. /api/preview enables the draftMode cookie then
-// redirects to the page path.
-const BuilderCanvas = ({ path, device, selectedId, onSelect, empty, onDropInsert, onSectionAction }: Props) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+// The canvas is an iframe of the real site renderer in draft mode. Two iframes
+// are double-buffered: the next version loads in the hidden twin and is swapped
+// in on its load event, so an edit never flashes a blank frame.
+const BuilderCanvas = ({ path, device, selectedId, onSelect, empty, reloadKey, onDropInsert, onSectionAction }: Props) => {
+  const previewSrc = useCallback((v: number) => `/api/preview?path=${encodeURIComponent(path)}&v=${v}`, [path]);
+
+  const frames = [useRef<HTMLIFrameElement>(null), useRef<HTMLIFrameElement>(null)] as const;
   const editorRef = useRef<EditorController | null>(null);
-  // Injected listeners must always see the latest props without being rebuilt.
   const handlersRef = useRef<Handlers>({ selectedId, onSelect, onDropInsert, onSectionAction });
+  const lastReloadKey = useRef(reloadKey);
+  const pendingLoad = useRef<{ idx: number; key: number } | null>(null);
+
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [srcs, setSrcs] = useState<[string, string]>([previewSrc(reloadKey), "about:blank"]);
+
   useEffect(() => {
     handlersRef.current = { selectedId, onSelect, onDropInsert, onSectionAction };
   });
 
-  const wireIframe = useCallback(() => {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc) return;
+  // On each save the builder bumps reloadKey: load it into the hidden frame.
+  useEffect(() => {
+    if (reloadKey === lastReloadKey.current) return;
+    lastReloadKey.current = reloadKey;
+    const target = 1 - activeIdx;
+    pendingLoad.current = { idx: target, key: reloadKey };
+    setSrcs((prev) => {
+      const next: [string, string] = [...prev];
+      next[target] = previewSrc(reloadKey);
+      return next;
+    });
+  }, [reloadKey, activeIdx, previewSrc]);
+
+  const onFrameLoad = (idx: number) => {
+    const doc = frames[idx].current?.contentDocument;
+    if (!doc || frames[idx].current?.src.endsWith("about:blank")) return;
+
+    if (idx === activeIdx) {
+      // First load of the visible frame.
+      editorRef.current?.destroy();
+      editorRef.current = buildEditor(doc, handlersRef);
+      return;
+    }
+    // A hidden frame finished loading the newest version — swap it in.
+    if (pendingLoad.current?.idx !== idx) return;
+    const prevWin = frames[activeIdx].current?.contentWindow;
+    const scrollY = prevWin?.scrollY ?? 0;
     editorRef.current?.destroy();
     editorRef.current = buildEditor(doc, handlersRef);
-  }, []);
+    doc.defaultView?.scrollTo(0, scrollY);
+    pendingLoad.current = null;
+    setActiveIdx(idx);
+  };
 
   useEffect(() => () => editorRef.current?.destroy(), []);
 
-  // Selection driven from outside the canvas (a layer click) — reflect it into
-  // the iframe's editor, which repositions the toolbar and scrolls if needed.
   useEffect(() => {
     editorRef.current?.selectExternal(selectedId);
   }, [selectedId]);
@@ -305,20 +329,26 @@ const BuilderCanvas = ({ path, device, selectedId, onSelect, empty, onDropInsert
         style={{ width: DEVICE_WIDTH[device], maxWidth: "100%" }}
       >
         {empty ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
             <div className="rounded-xl border border-dashed border-hairline bg-surface/95 px-8 py-6 text-center">
               <p className="text-sm font-medium text-ink">This page is empty</p>
               <p className="mt-1 text-xs text-muted">Drag a widget from the left onto the canvas, or click one to add it.</p>
             </div>
           </div>
         ) : null}
-        <iframe
-          ref={iframeRef}
-          src={`/api/preview?path=${encodeURIComponent(path)}`}
-          onLoad={wireIframe}
-          className="h-full w-full"
-          title="Page preview"
-        />
+        {[0, 1].map((idx) => (
+          <iframe
+            key={idx}
+            ref={frames[idx]}
+            src={srcs[idx]}
+            onLoad={() => onFrameLoad(idx)}
+            title="Page preview"
+            className={cn(
+              "absolute inset-0 h-full w-full transition-opacity duration-150",
+              idx === activeIdx ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0",
+            )}
+          />
+        ))}
       </div>
     </div>
   );

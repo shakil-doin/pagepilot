@@ -26,7 +26,7 @@ export const schema = z.object({
       .array(
         z.object({
           icon: field(z.string().optional(), { control: "icon", label: "Icon" }),
-          title: field(z.string().min(1), { control: "text", label: "Title" }),
+          title: field(z.string().min(1).default("Feature"), { control: "text", label: "Title" }),
           text: field(z.string().optional(), { control: "textarea", label: "Text" }),
           image: field(mediaRef.optional(), { control: "media", label: "Image", accept: "image" }),
           link: field(linkRef.optional(), { control: "link", label: "Link" }),

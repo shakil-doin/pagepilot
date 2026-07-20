@@ -14,8 +14,8 @@ export const schema = z.object({
     z
       .array(
         z.object({
-          question: field(z.string().min(1), { control: "text", label: "Question" }),
-          answer: field(z.string().min(1), { control: "textarea", label: "Answer" }),
+          question: field(z.string().min(1).default("Question goes here?"), { control: "text", label: "Question" }),
+          answer: field(z.string().min(1).default("Answer goes here."), { control: "textarea", label: "Answer" }),
         }),
       )
       .default([]),

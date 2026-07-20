@@ -36,8 +36,8 @@ export type LinkRef = z.infer<typeof linkRef>;
 export const colorValue = z.string();
 
 export const buttonItem = z.object({
-  label: field(z.string().min(1), { control: "text", label: "Label" }),
-  link: field(linkRef, { control: "link", label: "Link" }),
+  label: field(z.string().min(1).default("Button"), { control: "text", label: "Label" }),
+  link: field(linkRef.default({ href: "#" }), { control: "link", label: "Link" }),
   variant: field(z.enum(["primary", "secondary"]).default("primary"), {
     control: "segmented",
     label: "Style",

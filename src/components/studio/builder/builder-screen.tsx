@@ -44,33 +44,17 @@ const BuilderScreen = ({ pageId }: Props) => {
   const [leftOpen, toggleLeft] = usePanelState("pp-builder-left");
   const [rightOpen, toggleRight] = usePanelState("pp-builder-right");
 
-  // Build a fresh section node. Data widgets get sample content so a drop shows
-  // something instead of a blank grid (the Elementor "drop → placeholder" feel);
-  // columns get two empty slots you can drop widgets into.
+  // Build a fresh section node. List widgets already carry seeded sample content
+  // in their manifest defaults (see seedListDefaults), so a drop shows something
+  // instead of a blank grid; columns get two empty slots to drop widgets into.
   const buildNode = useCallback(
     (entry: WidgetManifestEntry | { customId: string } | { globalId: string; type: string }): SectionNode => {
       if ("customId" in entry) return { id: newSectionId(), type: `custom:${entry.customId}`, props: {} };
       if ("globalId" in entry) return { id: newSectionId(), type: "global", globalId: entry.globalId, props: {} };
-
-      const props = structuredClone(entry.defaults) as Record<string, unknown>;
-      if (entry.meta.key === "team-grid" && Array.isArray(props.members) && props.members.length === 0) {
-        props.members = [
-          { name: "Jane Doe", role: "Role" },
-          { name: "John Smith", role: "Role" },
-          { name: "Alex Lee", role: "Role" },
-        ];
-      }
-      if (entry.meta.key === "feature-grid" && Array.isArray(props.items) && props.items.length === 0) {
-        props.items = [
-          { title: "Feature one", text: "Describe this feature." },
-          { title: "Feature two", text: "Describe this feature." },
-          { title: "Feature three", text: "Describe this feature." },
-        ];
-      }
       return {
         id: newSectionId(),
         type: entry.meta.key,
-        props,
+        props: structuredClone(entry.defaults) as Record<string, unknown>,
         ...(entry.meta.key === "columns" ? { children: [[], []] } : {}),
       };
     },
@@ -253,12 +237,12 @@ const BuilderScreen = ({ pageId }: Props) => {
           </button>
         )}
         <BuilderCanvas
-          key={builder.canvasKey}
           path={builder.page.path}
           device={device}
           selectedId={builder.selectedId}
           onSelect={builder.setSelectedId}
           empty={builder.sections.length === 0}
+          reloadKey={builder.canvasKey}
           onDropInsert={onDropInsert}
           onSectionAction={onSectionAction}
         />
