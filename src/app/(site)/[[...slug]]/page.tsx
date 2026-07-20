@@ -94,14 +94,6 @@ const SitePage = async ({ params }: { params: Promise<Params> }) => {
       {structuredData ? (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       ) : null}
-      {preview ? (
-        // Keeps scroll position across the soft reloads the builder triggers
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var y=sessionStorage.getItem('pp-scroll');if(y)window.scrollTo(0,parseInt(y,10));window.addEventListener('scroll',function(){sessionStorage.setItem('pp-scroll',String(window.scrollY))},{passive:true});}catch(e){}`,
-          }}
-        />
-      ) : null}
     </>
   );
 };
