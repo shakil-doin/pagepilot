@@ -1,0 +1,159 @@
+/* Public-site base styles. Everything colorful comes from theme CSS variables
+   injected by the (site) layout; nothing here hardcodes brand values. */
+
+.pp-site {
+  background: var(--pp-c-background);
+  color: var(--pp-c-textMuted);
+  font-family: var(--pp-font-body, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--pp-text-body, 1rem);
+  -webkit-font-smoothing: antialiased;
+}
+
+.pp-site .pp-heading,
+.pp-site h1,
+.pp-site h2,
+.pp-site h3,
+.pp-site h4 {
+  color: var(--pp-c-text);
+  font-family: var(--pp-font-heading, var(--pp-font-body, ui-sans-serif));
+  font-weight: var(--pp-heading-weight, 600);
+}
+
+.pp-site .pp-muted {
+  color: var(--pp-c-textMuted);
+}
+
+.pp-site .pp-eyebrow {
+  color: var(--pp-c-primary);
+}
+
+.pp-bg-surface {
+  background: var(--pp-c-surface);
+}
+.pp-bg-primary {
+  background: var(--pp-c-primary);
+}
+.pp-bg-secondary {
+  background: var(--pp-c-secondary);
+}
+
+/* Dark section backgrounds flip the text palette */
+.pp-on-dark,
+.pp-on-dark .pp-heading,
+.pp-on-dark h1,
+.pp-on-dark h2,
+.pp-on-dark h3,
+.pp-on-dark h4 {
+  color: #ffffff;
+}
+.pp-on-dark .pp-muted {
+  color: rgb(255 255 255 / 0.78);
+}
+.pp-on-dark .pp-eyebrow {
+  color: rgb(255 255 255 / 0.85);
+}
+
+/* Rich text blocks */
+.pp-prose {
+  line-height: 1.75;
+}
+.pp-prose h1,
+.pp-prose h2,
+.pp-prose h3 {
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
+}
+.pp-prose h2 {
+  font-size: var(--pp-text-h2);
+}
+.pp-prose h3 {
+  font-size: var(--pp-text-h3);
+}
+.pp-prose p {
+  margin-bottom: 1em;
+}
+.pp-prose ul,
+.pp-prose ol {
+  margin: 1em 0 1em 1.4em;
+}
+.pp-prose ul {
+  list-style: disc;
+}
+.pp-prose ol {
+  list-style: decimal;
+}
+.pp-prose a {
+  color: var(--pp-c-primary);
+  text-decoration: underline;
+}
+.pp-prose blockquote {
+  border-left: 3px solid var(--pp-c-primary);
+  padding-left: 1rem;
+  font-style: italic;
+  margin: 1.5em 0;
+}
+.pp-prose code {
+  background: var(--pp-c-surface);
+  border: 1px solid var(--pp-c-border);
+  border-radius: var(--pp-radius-sm);
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.pp-prose pre {
+  background: var(--pp-c-secondary);
+  color: #fff;
+  border-radius: var(--pp-radius-md);
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1.5em 0;
+}
+.pp-prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.pp-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--pp-radius-md);
+}
+.pp-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+}
+.pp-prose th,
+.pp-prose td {
+  border: 1px solid var(--pp-c-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+/* Responsive envelope helpers used by the section renderer */
+@media (max-width: 767px) {
+  .pp-hide-mobile {
+    display: none !important;
+  }
+  .pp-only-tablet,
+  .pp-only-desktop {
+    display: none !important;
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .pp-hide-tablet {
+    display: none !important;
+  }
+  .pp-only-mobile,
+  .pp-only-desktop {
+    display: none !important;
+  }
+}
+@media (min-width: 1024px) {
+  .pp-hide-desktop {
+    display: none !important;
+  }
+  .pp-only-mobile,
+  .pp-only-tablet {
+    display: none !important;
+  }
+}

@@ -1,0 +1,363 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Users, roles, permissions ────────────────────────────────────────────────
+
+enum Role {
+  SUPERADMIN // everything + users + settings + danger zone
+  ADMIN // all content, theme, SEO, media, navigation
+  MODERATOR // edit/publish only pages granted via PagePermission; blog drafts
+  EDITOR // edit only (no publish) on granted pages; own blog drafts
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id            String           @id @default(cuid())
+  name          String
+  email         String           @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role             @default(EDITOR)
+  status        UserStatus       @default(ACTIVE)
+  accounts      Account[]
+  sessions      Session[]
+  permissions   PagePermission[]
+  revisions     PageRevision[]
+  posts         Post[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Per-page grants for MODERATOR/EDITOR. ADMIN+ bypasses this table.
+enum PageAccess {
+  VIEW
+  EDIT
+  PUBLISH
+}
+
+model PagePermission {
+  id     String     @id @default(cuid())
+  userId String
+  pageId String
+  access PageAccess @default(EDIT)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page   Page       @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pageId])
+}
+
+// Every write in the Studio logs one row: who, what, before/after summary.
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String // "page.publish", "theme.update", "user.role.change", …
+  entity    String // "Page:ckx…", "Setting:seo.defaults"
+  detail    Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entity])
+}
+
+// ── Pages & builder ──────────────────────────────────────────────────────────
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Page {
+  id                  String           @id @default(cuid())
+  // Full path including leading slash: "/", "/pricing", "/product/cloud-copier"
+  path                String           @unique
+  title               String // internal name shown in Studio lists
+  status              PageStatus       @default(DRAFT)
+  // The revision currently live on the site (null until first publish)
+  publishedRevisionId String?          @unique
+  publishedRevision   PageRevision?    @relation("PublishedRevision", fields: [publishedRevisionId], references: [id])
+  revisions           PageRevision[]   @relation("PageRevisions")
+  permissions         PagePermission[]
+  seo                 Seo?
+  // Optional layout flags: hide header/footer for landers, etc.
+  hideHeader          Boolean          @default(false)
+  hideFooter          Boolean          @default(false)
+  // Lock a page so only ADMIN+ can edit regardless of grants
+  locked              Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([status])
+}
+
+// Immutable snapshots. The builder autosaves into a rolling DRAFT revision;
+// Publish freezes it. Rollback = point publishedRevisionId at an old row.
+model PageRevision {
+  id           String   @id @default(cuid())
+  pageId       String
+  page         Page     @relation("PageRevisions", fields: [pageId], references: [id], onDelete: Cascade)
+  publishedFor Page?    @relation("PublishedRevision")
+  // Ordered section tree: [{ id, type, props, spacing, responsive, adminLabel }]
+  // Validated against every widget's Zod schema before save AND before publish.
+  sections     Json
+  version      Int // monotonic per page
+  note         String? // optional "what changed" note
+  authorId     String?
+  author       User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@unique([pageId, version])
+  @@index([pageId, createdAt])
+}
+
+// ── SEO ──────────────────────────────────────────────────────────────────────
+
+model Seo {
+  id     String  @id @default(cuid())
+  pageId String? @unique
+  page   Page?   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  postId String? @unique
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  // "index,follow" | "noindex,follow" | "noindex,nofollow" …
+  robots          String?
+  ogTitle         String?
+  ogDescription   String?
+  ogImageId       String?
+  ogImage         Media?  @relation(fields: [ogImageId], references: [id], onDelete: SetNull)
+  ogType          String? // "website" | "article"
+  twitterCard     String? // "summary_large_image" default
+  // Raw JSON-LD objects, array; rendered into <script type="application/ld+json">
+  structuredData  Json?
+  // Exclude from sitemap.xml without noindexing
+  excludeFromSitemap Boolean @default(false)
+  sitemapPriority    Float? // 0.0–1.0
+  sitemapChangeFreq  String? // "daily" | "weekly" | …
+}
+
+model Redirect {
+  id        String   @id @default(cuid())
+  fromPath  String   @unique
+  toPath    String
+  permanent Boolean  @default(true) // 308 vs 307
+  createdAt DateTime @default(now())
+}
+
+// ── Blog ─────────────────────────────────────────────────────────────────────
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+model Post {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  title        String
+  excerpt      String?
+  // TipTap JSON document. Rendered server-side to HTML at publish (cached).
+  content      Json
+  contentHtml  String? // pre-rendered HTML snapshot for fast public reads
+  coverImageId String?
+  coverImage   Media?     @relation(fields: [coverImageId], references: [id], onDelete: SetNull)
+  status       PostStatus @default(DRAFT)
+  publishedAt  DateTime?
+  scheduledFor DateTime?
+  authorId     String
+  author       User       @relation(fields: [authorId], references: [id])
+  categories   Category[]
+  tags         Tag[]
+  seo          Seo?
+  readingMins  Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  slug  String @unique
+  name  String
+  posts Post[]
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  slug  String @unique
+  name  String
+  posts Post[]
+}
+
+// ── Media ────────────────────────────────────────────────────────────────────
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  FILE
+}
+
+model MediaFolder {
+  id       String        @id @default(cuid())
+  name     String
+  parentId String?
+  parent   MediaFolder?  @relation("Tree", fields: [parentId], references: [id], onDelete: Cascade)
+  children MediaFolder[] @relation("Tree")
+  media    Media[]
+}
+
+model Media {
+  id          String       @id @default(cuid())
+  kind        MediaKind
+  // Storage key of the original in S3-compatible storage
+  storageKey  String       @unique
+  url         String // public CDN URL
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  durationSec Float? // video
+  // Mandatory for images used in content — builder blocks publish without it
+  alt         String?
+  caption     String?
+  // 0–1 coordinates; renderer maps to object-position for art-directed crops
+  focalX      Float?
+  focalY      Float?
+  blurDataUrl String? // LQIP placeholder generated at upload
+  folderId    String?
+  folder      MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  deletedAt   DateTime? // soft delete → Trash view, purge after 30 days
+  createdAt   DateTime     @default(now())
+  seoUsages   Seo[]
+  postCovers  Post[]
+
+  @@index([kind, deletedAt])
+  @@index([folderId])
+}
+
+// ── Theme (global colors, typography, styles) ────────────────────────────────
+
+model Theme {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(false)
+  // Token map: { colors: {...}, fonts: {...}, radii: {...}, spacing: {...},
+  //              buttons: {...}, container: {...} }
+  tokens    Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+// ── Navigation (header/footer menus) ─────────────────────────────────────────
+
+model Menu {
+  id        String   @id @default(cuid())
+  // "header" | "footer" | custom slots
+  slot      String   @unique
+  // Nested items: [{ label, href, icon?, badge?, children: [...] }]
+  items     Json
+  updatedAt DateTime @updatedAt
+}
+
+// ── Widgets ──────────────────────────────────────────────────────────────────
+
+// Global widget: ONE widget instance reused by reference on many pages.
+// Editing it updates every page that references it (those pages re-revalidate).
+model GlobalWidget {
+  id        String   @id @default(cuid())
+  name      String
+  type      String // registry key
+  props     Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+// Custom widget: composed in the Studio from primitive widgets when no coded
+// widget fits. Stored as a reusable section tree, inserted like any widget.
+model CustomWidget {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  thumbnail    String?
+  // Same shape as PageRevision.sections but scoped to this widget's children
+  tree         Json
+  // Editable fields exposed to the inspector when instances are placed:
+  // [{ key, label, type, target: "<childId>.<propPath>" }]
+  exposedProps Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ── Icon sets (runtime-installable) ──────────────────────────────────────────
+
+model IconSet {
+  id          String   @id @default(cuid())
+  // Iconify collection prefix: "ph", "lucide", "tabler", "mdi", …
+  prefix      String   @unique
+  name        String
+  installedAt DateTime @default(now())
+  // Iconify collection JSON (icon name → SVG body). Served to the picker and
+  // inlined into pages at render time — no client icon library needed.
+  data        Json
+}
+
+// ── Settings (key-value, all UI-managed) ─────────────────────────────────────
+
+model Setting {
+  key       String   @id // "site.general", "seo.defaults", "scripts.head", …
+  value     Json
+  updatedAt DateTime @updatedAt
+}
