@@ -110,12 +110,18 @@ export const listPages = async (params: {
         locked: true,
         updatedAt: true,
         publishedRevisionId: true,
+        seo: { select: { robots: true } },
         _count: { select: { revisions: true } },
       },
     }),
     db.page.count({ where }),
   ]);
-  return { pages, total, pages_total: Math.max(1, Math.ceil(total / 20)) };
+  // Surface a simple indexing flag so the list can offer a one-click toggle.
+  const rows = pages.map(({ seo, ...page }) => ({
+    ...page,
+    noindex: Boolean(seo?.robots && seo.robots.toLowerCase().includes("noindex")),
+  }));
+  return { pages: rows, total, pages_total: Math.max(1, Math.ceil(total / 20)) };
 };
 
 export const getPageForStudio = async (id: string) => {
@@ -261,6 +267,31 @@ export const archivePage = async (userId: string, id: string) => {
   expireTag(TAGS.page(page.path), TAGS.pages);
   await audit(userId, "page.archive", `Page:${id}`, { path: page.path });
   return page;
+};
+
+// Take a live page back to draft: it stops serving publicly (getPublishedPage
+// filters on status PUBLISHED) but keeps its published-revision pointer so
+// Publish restores it as-is. Reversible, non-destructive.
+export const unpublishPage = async (userId: string, id: string) => {
+  const page = await db.page.update({ where: { id }, data: { status: "DRAFT" } });
+  expireTag(TAGS.page(page.path), TAGS.pages);
+  await audit(userId, "page.unpublish", `Page:${id}`, { path: page.path });
+  return page;
+};
+
+// Toggle search-engine indexing for a page without disturbing its other SEO
+// fields. noindex also drops it from sitemap.xml (a noindexed URL shouldn't be
+// advertised); re-enabling clears both back to the indexable default.
+export const setPageIndexing = async (userId: string, id: string, noindex: boolean) => {
+  await db.seo.upsert({
+    where: { pageId: id },
+    create: { pageId: id, robots: noindex ? "noindex, nofollow" : null, excludeFromSitemap: noindex },
+    update: { robots: noindex ? "noindex, nofollow" : null, excludeFromSitemap: noindex },
+  });
+  const page = await db.page.findUnique({ where: { id }, select: { path: true } });
+  if (page) expireTag(TAGS.page(page.path), TAGS.pages);
+  await audit(userId, noindex ? "page.noindex" : "page.index", `Page:${id}`);
+  return { noindex };
 };
 
 export const deletePage = async (userId: string, id: string) => {

@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import CanvasRender from "@/components/studio/builder/canvas-render";
 import { PP_INSERT_MIME } from "@/components/studio/builder/builder-palette";
+import type { SectionNode } from "@/types";
+// Site base styles for the in-document canvas. Everything is namespaced under
+// .pp-site / pp-* so it can't bleed into the studio chrome.
+import "@/app/(site)/site.css";
 
 export type Device = "desktop" | "tablet" | "mobile";
-
 export type SectionAction = "up" | "down" | "duplicate" | "delete";
 
 // Where a dragged widget lands: top-level at `index`, or inside a container's
@@ -13,13 +17,13 @@ export type SectionAction = "up" | "down" | "duplicate" | "delete";
 export type DropTarget = { slot?: { sectionId: string; slotIndex: number }; index: number };
 
 type Props = {
-  path: string;
+  sections: SectionNode[];
   device: Device;
   selectedId: string | null;
   onSelect: (id: string) => void;
   empty: boolean;
-  // Bumped by the builder after each save; drives a flicker-free reload.
-  reloadKey: number;
+  themeCss?: string;
+  fontClass?: string;
   onDropInsert?: (payload: string, target: DropTarget) => void;
   onSectionAction?: (id: string, action: SectionAction) => void;
 };
@@ -30,303 +34,220 @@ const DEVICE_WIDTH: Record<Device, string> = {
   mobile: "390px",
 };
 
-// Editor chrome injected into the iframe document: hover outline + name badge,
-// selection toolbar, and the drop-gap. All INSIDE the iframe so it shares the
-// content's coordinate space — controls stay glued through scroll and resize.
+// Editor chrome, scoped to the canvas so it never touches studio UI. Hover
+// highlighting is driven by JS (hoverRuleFor) rather than CSS :hover, so only
+// the innermost widget under the pointer lights up — nested sections no longer
+// stack overlapping outlines and name badges.
 const EDITOR_CSS = `
-[data-pp-section] { position: relative; }
-[data-pp-section]:hover { outline: 2px dashed rgba(79,70,229,.55); outline-offset: -2px; cursor: pointer; }
-[data-pp-section]:hover::before {
-  content: attr(data-pp-name);
-  position: absolute; top: 0; left: 0; z-index: 2147483000;
-  background: #4F46E5; color: #fff; font: 600 10px/1.6 ui-sans-serif, system-ui;
-  padding: 1px 6px; border-radius: 0 0 4px 0; pointer-events: none;
+.pp-canvas [data-pp-section] { position: relative; }
+.pp-canvas .pp-slot { min-height: 64px; }
+.pp-canvas .pp-slot:empty {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 72px; border: 2px dashed rgba(79,70,229,.45); border-radius: 10px;
+  background: rgba(79,70,229,.05); margin: 4px;
 }
-#pp-ed-toolbar {
-  display: none; position: fixed; z-index: 2147483600; gap: 2px; padding: 2px;
-  background: #4F46E5; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+.pp-canvas .pp-slot:empty::after {
+  content: 'Drop a widget here'; color: rgba(79,70,229,.75);
+  font: 600 11px/1 ui-sans-serif, system-ui;
 }
-#pp-ed-toolbar.on { display: flex; }
-#pp-ed-toolbar button {
-  all: unset; cursor: pointer; color: #fff; width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center; border-radius: 4px;
-  font: 600 13px/1 ui-sans-serif, system-ui;
-}
-#pp-ed-toolbar button:hover { background: rgba(255,255,255,.22); }
-#pp-ed-toolbar button[disabled] { opacity: .4; cursor: default; }
-#pp-ed-gap {
+.pp-canvas .pp-drop-gap {
   height: 92px; margin: 8px 12px; border: 2px dashed #4F46E5; border-radius: 10px;
   background: rgba(79,70,229,.09); display: flex; align-items: center; justify-content: center;
   color: #4F46E5; font: 600 12px/1 ui-sans-serif, system-ui; box-sizing: border-box;
 }
-#pp-ed-gap::after { content: 'Drop here'; }
-.pp-slot { min-height: 52px; }
-.pp-slot:empty {
-  display: flex; align-items: center; justify-content: center;
-  border: 1px dashed rgba(79,70,229,.5); border-radius: 8px; margin: 4px 0;
-}
-.pp-slot:empty::after {
-  content: 'Drop widget here'; color: rgba(79,70,229,.7);
-  font: 500 11px/1 ui-sans-serif, system-ui;
-}
 `;
 
-// CSS that outlines the selected section by id — never touches its className,
-// which would race the iframe's own React hydration and mismatch.
 const selectRuleFor = (id: string | null) =>
-  id ? `[data-pp-section="${id}"] { outline: 2px solid #4F46E5 !important; outline-offset: -2px; }` : "";
+  id ? `.pp-canvas [data-pp-section="${id}"] { outline: 2px solid #4F46E5 !important; outline-offset: -2px; }` : "";
 
-type Handlers = {
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onDropInsert?: (payload: string, target: DropTarget) => void;
-  onSectionAction?: (id: string, action: SectionAction) => void;
-};
+// Outline + name badge for the single innermost hovered widget only.
+const hoverRuleFor = (id: string | null) =>
+  id
+    ? `
+.pp-canvas [data-pp-section="${id}"] { outline: 2px dashed rgba(79,70,229,.55); outline-offset: -2px; cursor: pointer; }
+.pp-canvas [data-pp-section="${id}"]::before {
+  content: attr(data-pp-name); position: absolute; top: 0; left: 0; z-index: 40;
+  background: #4F46E5; color: #fff; font: 600 10px/1.6 ui-sans-serif, system-ui;
+  padding: 1px 6px; border-radius: 0 0 4px 0; pointer-events: none; text-transform: capitalize;
+}`
+    : "";
 
-type EditorController = {
-  selectExternal: (id: string | null) => void;
-  destroy: () => void;
-};
+const BuilderCanvas = ({
+  sections,
+  device,
+  selectedId,
+  onSelect,
+  empty,
+  themeCss,
+  fontClass,
+  onDropInsert,
+  onSectionAction,
+}: Props) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const pendingTarget = useRef<DropTarget>({ index: 0 });
+  const [toolbar, setToolbar] = useState<{ top: number; left: number; first: boolean; last: boolean } | null>(null);
+  // Top-level drops open an in-flow gap at this index; slot drops draw a line.
+  const [gapIndex, setGapIndex] = useState<number | null>(null);
+  const [dropLine, setDropLine] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
 
-const buildEditor = (doc: Document, handlersRef: { current: Handlers }): EditorController => {
-  const win = doc.defaultView!;
+  const clearDropHints = useCallback(() => {
+    setGapIndex(null);
+    setDropLine(null);
+  }, []);
 
-  const baseStyle = doc.createElement("style");
-  baseStyle.textContent = EDITOR_CSS;
-  doc.head.appendChild(baseStyle);
-
-  const selStyle = doc.createElement("style");
-  selStyle.textContent = selectRuleFor(handlersRef.current.selectedId);
-  doc.head.appendChild(selStyle);
-
-  const toolbar = doc.createElement("div");
-  toolbar.id = "pp-ed-toolbar";
-  toolbar.innerHTML =
-    `<button data-a="up" title="Move up">↑</button>` +
-    `<button data-a="down" title="Move down">↓</button>` +
-    `<button data-a="duplicate" title="Duplicate">⧉</button>` +
-    `<button data-a="delete" title="Delete">✕</button>`;
-  doc.body.appendChild(toolbar);
-
-  // The drop-gap is a real in-flow element inserted between sections during a
-  // drag, so content physically opens up to receive the widget (Elementor feel).
-  const gap = doc.createElement("div");
-  gap.id = "pp-ed-gap";
-
-  // Top-level sections only (nested widgets inside columns are also stamped).
-  const tops = (): HTMLElement[] =>
-    Array.from(doc.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
+  // Top-level section elements, in document order (ignoring nested ones).
+  const topSections = useCallback((): HTMLElement[] => {
+    const frame = frameRef.current;
+    if (!frame) return [];
+    return Array.from(frame.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
       (el) => !el.parentElement?.closest("[data-pp-slot]") && !el.parentElement?.closest("[data-pp-section]"),
     );
+  }, []);
 
-  const childSections = (slotEl: HTMLElement): HTMLElement[] =>
-    Array.from(slotEl.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
-      (el) => el.parentElement?.closest("[data-pp-slot]") === slotEl,
-    );
+  // The sibling sections of `el` — its own column slot's direct children, or the
+  // top-level list — used to know if move-up/down are available.
+  const siblingsOf = useCallback(
+    (el: HTMLElement): HTMLElement[] => {
+      const slot = el.parentElement?.closest<HTMLElement>("[data-pp-slot]");
+      if (!slot) return topSections();
+      return Array.from(slot.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
+        (n) => n.parentElement?.closest("[data-pp-slot]") === slot,
+      );
+    },
+    [topSections],
+  );
 
-  let curSel: string | null = handlersRef.current.selectedId;
-  let pendingTarget: DropTarget = { index: 0 };
-  let gapKey = "";
-
-  const positionToolbar = () => {
-    if (!curSel) return toolbar.classList.remove("on");
-    const list = tops();
-    const el = list.find((s) => s.getAttribute("data-pp-section") === curSel);
-    if (!el) return toolbar.classList.remove("on");
+  // Position the floating toolbar over the current selection — top-level OR a
+  // widget nested inside a container/column slot.
+  const positionToolbar = useCallback(() => {
+    const scroll = scrollRef.current;
+    const frame = frameRef.current;
+    if (!scroll || !frame || !selectedId) return setToolbar(null);
+    const el = frame.querySelector<HTMLElement>(`[data-pp-section="${CSS.escape(selectedId)}"]`);
+    if (!el) return setToolbar(null);
+    const siblings = siblingsOf(el);
+    const idx = siblings.indexOf(el);
     const r = el.getBoundingClientRect();
-    const idx = list.indexOf(el);
-    toolbar.style.top = `${r.top > 30 ? r.top - 26 : r.top + 4}px`;
-    toolbar.style.left = `${Math.max(r.left + 4, 4)}px`;
-    (toolbar.querySelector('[data-a="up"]') as HTMLButtonElement).disabled = idx === 0;
-    (toolbar.querySelector('[data-a="down"]') as HTMLButtonElement).disabled = idx === list.length - 1;
-    toolbar.classList.add("on");
-  };
+    const c = scroll.getBoundingClientRect();
+    setToolbar({
+      top: r.top - c.top + scroll.scrollTop - 30,
+      left: r.left - c.left + scroll.scrollLeft + 4,
+      first: idx <= 0,
+      last: idx === siblings.length - 1,
+    });
+  }, [selectedId, siblingsOf]);
 
-  const setSelected = (id: string | null, scroll: boolean) => {
-    selStyle.textContent = selectRuleFor(id);
-    if (scroll && id && id !== curSel) {
-      const el = tops().find((s) => s.getAttribute("data-pp-section") === id);
-      const r = el?.getBoundingClientRect();
-      if (r && (r.top < 0 || r.bottom > win.innerHeight)) el!.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    curSel = id;
+  useLayoutEffect(() => {
     positionToolbar();
+  }, [positionToolbar, sections, device]);
+
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const onScroll = () => positionToolbar();
+    scroll.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      scroll.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [positionToolbar]);
+
+  const onClick = (event: React.MouseEvent) => {
+    const el = (event.target as HTMLElement).closest("[data-pp-section]");
+    if (!el) return;
+    event.preventDefault();
+    onSelect(el.getAttribute("data-pp-section")!);
   };
 
-  // Resolve a pointer to a drop target plus where to place the gap element.
-  const resolveDrop = (
-    clientY: number,
-    eventTarget: EventTarget | null,
-  ): { target: DropTarget; container: HTMLElement; refNode: HTMLElement | null } => {
-    const slotEl = ((eventTarget as HTMLElement | null)?.closest?.("[data-pp-slot]") ?? null) as HTMLElement | null;
-    const list = slotEl ? childSections(slotEl) : tops();
-    const parent = slotEl ?? tops()[0]?.parentElement ?? doc.body;
+  // Highlight only the innermost widget under the pointer.
+  const onMouseOver = (event: React.MouseEvent) => {
+    const id = (event.target as HTMLElement).closest("[data-pp-section]")?.getAttribute("data-pp-section") ?? null;
+    setHoverId((prev) => (prev === id ? prev : id));
+  };
+
+  const dragPayload = (): string | undefined => (window as unknown as { __PP_DRAG__?: string }).__PP_DRAG__;
+  const isOurDrag = (event: React.DragEvent) =>
+    Boolean(dragPayload()) || event.dataTransfer.types.includes(PP_INSERT_MIME);
+
+  // Resolve a pointer to a drop target and where to draw the insertion line.
+  const resolveDrop = (clientY: number, target: EventTarget | null) => {
+    const frame = frameRef.current!;
+    const scroll = scrollRef.current!;
+    const slotEl = (target as HTMLElement | null)?.closest?.("[data-pp-slot]") as HTMLElement | null;
+    const list = slotEl
+      ? Array.from(slotEl.querySelectorAll<HTMLElement>("[data-pp-section]")).filter(
+          (el) => el.parentElement?.closest("[data-pp-slot]") === slotEl,
+        )
+      : topSections();
     const slot = slotEl
       ? (() => {
           const [sectionId, slotIndex] = slotEl.getAttribute("data-pp-slot")!.split(":");
           return { sectionId, slotIndex: Number(slotIndex) };
         })()
       : undefined;
+    const container = (slotEl ?? frame).getBoundingClientRect();
+    const c = scroll.getBoundingClientRect();
 
-    // Ignore the gap itself when measuring.
-    const measured = list.filter((el) => el.id !== "pp-ed-gap");
-    for (let i = 0; i < measured.length; i++) {
-      const r = measured[i].getBoundingClientRect();
-      if (clientY < r.top + r.height / 2) return { target: { slot, index: i }, container: parent as HTMLElement, refNode: measured[i] };
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) {
+        pendingTarget.current = { slot, index: i };
+        return { top: r.top - c.top + scroll.scrollTop, left: container.left - c.left + scroll.scrollLeft, width: container.width };
+      }
     }
-    return { target: { slot, index: measured.length }, container: parent as HTMLElement, refNode: null };
+    pendingTarget.current = { slot, index: list.length };
+    const lastR = list[list.length - 1]?.getBoundingClientRect();
+    const top = lastR ? lastR.bottom - c.top + scroll.scrollTop : container.top - c.top + scroll.scrollTop;
+    return { top, left: container.left - c.left + scroll.scrollLeft, width: container.width };
   };
 
-  const showGap = (drop: ReturnType<typeof resolveDrop>) => {
-    const key = `${drop.target.slot?.sectionId ?? "root"}:${drop.target.slot?.slotIndex ?? ""}:${drop.target.index}`;
-    if (key === gapKey && gap.isConnected) return; // stable — avoid layout thrash
-    gapKey = key;
-    if (drop.refNode?.parentNode) drop.refNode.parentNode.insertBefore(gap, drop.refNode);
-    else drop.container.appendChild(gap);
-  };
-
-  const hideGap = () => {
-    gap.remove();
-    gapKey = "";
-  };
-
-  const dragPayload = (): string | undefined => (win.parent as unknown as { __PP_DRAG__?: string }).__PP_DRAG__;
-  const isOurDrag = (event: DragEvent) =>
-    Boolean(dragPayload()) || (event.dataTransfer?.types.includes(PP_INSERT_MIME) ?? false);
-
-  const onClick = (event: MouseEvent) => {
-    const el = (event.target as HTMLElement).closest("[data-pp-section]");
-    if (!el) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const id = el.getAttribute("data-pp-section")!;
-    setSelected(id, false);
-    handlersRef.current.onSelect(id);
-  };
-
-  const onToolbarClick = (event: MouseEvent) => {
-    const btn = (event.target as HTMLElement).closest("button");
-    if (!btn || !curSel) return;
-    event.preventDefault();
-    event.stopPropagation();
-    handlersRef.current.onSectionAction?.(curSel, btn.getAttribute("data-a") as SectionAction);
-  };
-
-  const onDragOver = (event: DragEvent) => {
+  const onDragOver = (event: React.DragEvent) => {
     if (!isOurDrag(event)) return;
     event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-    const drop = resolveDrop(event.clientY, event.target);
-    pendingTarget = drop.target;
-    showGap(drop);
+    event.dataTransfer.dropEffect = "copy";
+    const line = resolveDrop(event.clientY, event.target); // sets pendingTarget.current
+    // Inside a column slot → a line; at the top level → open a real gap so the
+    // page parts to receive the widget.
+    if (pendingTarget.current.slot) {
+      setGapIndex(null);
+      setDropLine(line);
+    } else {
+      setDropLine(null);
+      setGapIndex(pendingTarget.current.index);
+    }
   };
 
-  const onDrop = (event: DragEvent) => {
+  const onDrop = (event: React.DragEvent) => {
     if (!isOurDrag(event)) return;
     event.preventDefault();
-    hideGap();
-    const payload = dragPayload() || event.dataTransfer?.getData(PP_INSERT_MIME);
-    if (payload) handlersRef.current.onDropInsert?.(payload, pendingTarget);
+    clearDropHints();
+    const payload = dragPayload() || event.dataTransfer.getData(PP_INSERT_MIME);
+    if (payload) onDropInsert?.(payload, pendingTarget.current);
   };
 
-  const onDragLeave = (event: DragEvent) => {
-    if (!event.relatedTarget) hideGap();
+  const onDragLeave = (event: React.DragEvent) => {
+    if (!event.relatedTarget || !scrollRef.current?.contains(event.relatedTarget as Node)) clearDropHints();
   };
-  const onDragEnd = () => hideGap();
-
-  const reposition = () => positionToolbar();
-
-  doc.addEventListener("click", onClick, true);
-  toolbar.addEventListener("click", onToolbarClick, true);
-  doc.addEventListener("dragover", onDragOver);
-  doc.addEventListener("drop", onDrop);
-  doc.addEventListener("dragleave", onDragLeave);
-  doc.addEventListener("dragend", onDragEnd);
-  win.addEventListener("scroll", reposition, true);
-  win.addEventListener("resize", reposition);
-
-  positionToolbar();
-
-  return {
-    selectExternal: (id) => setSelected(id, true),
-    destroy: () => {
-      doc.removeEventListener("click", onClick, true);
-      doc.removeEventListener("dragover", onDragOver);
-      doc.removeEventListener("drop", onDrop);
-      doc.removeEventListener("dragleave", onDragLeave);
-      doc.removeEventListener("dragend", onDragEnd);
-      win.removeEventListener("scroll", reposition, true);
-      win.removeEventListener("resize", reposition);
-    },
-  };
-};
-
-// The canvas is an iframe of the real site renderer in draft mode. Two iframes
-// are double-buffered: the next version loads in the hidden twin and is swapped
-// in on its load event, so an edit never flashes a blank frame.
-const BuilderCanvas = ({ path, device, selectedId, onSelect, empty, reloadKey, onDropInsert, onSectionAction }: Props) => {
-  const previewSrc = useCallback((v: number) => `/api/preview?path=${encodeURIComponent(path)}&v=${v}`, [path]);
-
-  const frames = [useRef<HTMLIFrameElement>(null), useRef<HTMLIFrameElement>(null)] as const;
-  const editorRef = useRef<EditorController | null>(null);
-  const handlersRef = useRef<Handlers>({ selectedId, onSelect, onDropInsert, onSectionAction });
-  const lastReloadKey = useRef(reloadKey);
-  const pendingLoad = useRef<{ idx: number; key: number } | null>(null);
-
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [srcs, setSrcs] = useState<[string, string]>([previewSrc(reloadKey), "about:blank"]);
-
-  useEffect(() => {
-    handlersRef.current = { selectedId, onSelect, onDropInsert, onSectionAction };
-  });
-
-  // On each save the builder bumps reloadKey: load it into the hidden frame.
-  useEffect(() => {
-    if (reloadKey === lastReloadKey.current) return;
-    lastReloadKey.current = reloadKey;
-    const target = 1 - activeIdx;
-    pendingLoad.current = { idx: target, key: reloadKey };
-    setSrcs((prev) => {
-      const next: [string, string] = [...prev];
-      next[target] = previewSrc(reloadKey);
-      return next;
-    });
-  }, [reloadKey, activeIdx, previewSrc]);
-
-  const onFrameLoad = (idx: number) => {
-    const doc = frames[idx].current?.contentDocument;
-    if (!doc || frames[idx].current?.src.endsWith("about:blank")) return;
-
-    if (idx === activeIdx) {
-      // First load of the visible frame.
-      editorRef.current?.destroy();
-      editorRef.current = buildEditor(doc, handlersRef);
-      return;
-    }
-    // A hidden frame finished loading the newest version — swap it in.
-    if (pendingLoad.current?.idx !== idx) return;
-    const prevWin = frames[activeIdx].current?.contentWindow;
-    const scrollY = prevWin?.scrollY ?? 0;
-    editorRef.current?.destroy();
-    editorRef.current = buildEditor(doc, handlersRef);
-    doc.defaultView?.scrollTo(0, scrollY);
-    pendingLoad.current = null;
-    setActiveIdx(idx);
-  };
-
-  useEffect(() => () => editorRef.current?.destroy(), []);
-
-  useEffect(() => {
-    editorRef.current?.selectExternal(selectedId);
-  }, [selectedId]);
 
   return (
-    <div className="flex min-w-0 flex-1 items-stretch justify-center overflow-auto bg-app p-4">
+    <div className="flex min-w-0 flex-1 items-stretch justify-center bg-app p-4">
+      <style>{EDITOR_CSS}</style>
+      {themeCss ? <style>{themeCss}</style> : null}
+      <style>{selectRuleFor(selectedId)}</style>
+      <style>{hoverRuleFor(hoverId)}</style>
       <div
-        className={cn(
-          "relative mx-auto h-full min-h-[500px] overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition-all",
-        )}
-        style={{ width: DEVICE_WIDTH[device], maxWidth: "100%" }}
+        ref={scrollRef}
+        className="relative mx-auto h-full min-h-[500px] w-full overflow-auto rounded-xl border border-hairline bg-white shadow-sm"
+        style={{ maxWidth: DEVICE_WIDTH[device] === "100%" ? "100%" : DEVICE_WIDTH[device] }}
+        onClick={onClick}
+        onMouseOver={onMouseOver}
+        onMouseLeave={() => setHoverId(null)}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragLeave={onDragLeave}
       >
         {empty ? (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
@@ -336,19 +257,47 @@ const BuilderCanvas = ({ path, device, selectedId, onSelect, empty, reloadKey, o
             </div>
           </div>
         ) : null}
-        {[0, 1].map((idx) => (
-          <iframe
-            key={idx}
-            ref={frames[idx]}
-            src={srcs[idx]}
-            onLoad={() => onFrameLoad(idx)}
-            title="Page preview"
-            className={cn(
-              "absolute inset-0 h-full w-full transition-opacity duration-150",
-              idx === activeIdx ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0",
-            )}
+
+        <div ref={frameRef} className={cn("pp-site pp-canvas min-h-full", fontClass)}>
+          <CanvasRender sections={sections} gapIndex={gapIndex} />
+        </div>
+
+        {dropLine ? (
+          <div
+            className="pointer-events-none absolute z-40 h-0.5 rounded-full bg-brand"
+            style={{ top: dropLine.top, left: dropLine.left, width: dropLine.width }}
           />
-        ))}
+        ) : null}
+
+        {toolbar ? (
+          <div
+            className="absolute z-40 flex gap-0.5 rounded-md bg-brand p-0.5 shadow-lg"
+            style={{ top: Math.max(toolbar.top, 2), left: toolbar.left }}
+          >
+            {(
+              [
+                { a: "up", label: "↑", title: "Move up", disabled: toolbar.first },
+                { a: "down", label: "↓", title: "Move down", disabled: toolbar.last },
+                { a: "duplicate", label: "⧉", title: "Duplicate", disabled: false },
+                { a: "delete", label: "✕", title: "Delete", disabled: false },
+              ] as const
+            ).map((b) => (
+              <button
+                key={b.a}
+                type="button"
+                title={b.title}
+                disabled={b.disabled}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (selectedId) onSectionAction?.(selectedId, b.a);
+                }}
+                className="flex h-[22px] w-[22px] items-center justify-center rounded text-[13px] font-semibold text-white hover:bg-white/20 disabled:opacity-40"
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

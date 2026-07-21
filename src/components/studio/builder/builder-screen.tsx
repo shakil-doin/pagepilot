@@ -1,15 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useBuilder } from "@/components/studio/builder/use-builder";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   duplicateSection,
   findSection,
   insertSection,
   insertIntoSlot,
+  moveNodeInParent,
   newSectionId,
   removeSection,
   updateSection,
+  syncColumnSlots,
 } from "@/components/studio/builder/builder-utils";
 import { CaretDoubleLeft, CaretDoubleRight, StackSimple, SlidersHorizontal } from "@phosphor-icons/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,9 +52,28 @@ const usePanelState = (key: string) => {
 
 const BuilderScreen = ({ pageId }: Props) => {
   const builder = useBuilder(pageId);
+  const router = useRouter();
   const [device, setDevice] = useState<Device>("desktop");
   const [leftOpen, toggleLeft] = usePanelState("pp-builder-left");
   const [rightOpen, toggleRight] = usePanelState("pp-builder-right");
+  // Unsaved-changes guard when leaving the builder (the "back" button).
+  const [leaveOpen, setLeaveOpen] = useState(false);
+
+  const requestLeave = useCallback(() => {
+    if (builder.dirty) setLeaveOpen(true);
+    else router.push("/studio/pages");
+  }, [builder.dirty, router]);
+
+  const leaveAfterSave = useCallback(async () => {
+    const ok = await builder.saveDraft();
+    setLeaveOpen(false);
+    if (ok) router.push("/studio/pages");
+  }, [builder, router]);
+
+  const leaveDiscard = useCallback(() => {
+    setLeaveOpen(false);
+    router.push("/studio/pages");
+  }, [router]);
 
   // Build a fresh section node. List widgets already carry seeded sample content
   // in their manifest defaults (see seedListDefaults), so a drop shows something
@@ -55,7 +86,12 @@ const BuilderScreen = ({ pageId }: Props) => {
         id: newSectionId(),
         type: entry.meta.key,
         props: structuredClone(entry.defaults) as Record<string, unknown>,
-        ...(entry.meta.key === "columns" ? { children: [[], []] } : {}),
+        // Container widgets start with empty drop slots: columns → 2, container → 1.
+        ...(entry.meta.key === "columns"
+          ? { children: [[], []] }
+          : entry.meta.key === "container"
+            ? { children: [[]] }
+            : {}),
       };
     },
     [],
@@ -135,18 +171,18 @@ const BuilderScreen = ({ pageId }: Props) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [builder]);
 
-  // Warn before a tab close / hard navigation drops unsaved edits. (SPA
-  // navigation away is covered by the flush-on-unmount in useBuilder.)
+  // Warn before a tab close / reload drops unsaved edits (browser-native
+  // prompt). In-app leaving is caught by the back-button guard dialog.
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (builder.saveState === "dirty" || builder.saveState === "offline") {
+      if (builder.dirty) {
         event.preventDefault();
         event.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [builder.saveState]);
+  }, [builder.dirty]);
 
   if (builder.pageLoading || !builder.page) {
     return <div className="flex h-full items-center justify-center text-sm text-muted">Loading builder…</div>;
@@ -156,18 +192,12 @@ const BuilderScreen = ({ pageId }: Props) => {
   const manifestByKey = new Map((builder.manifest?.manifest ?? []).map((entry) => [entry.meta.key, entry]));
 
   // Dispatch for the on-canvas section toolbar (move/duplicate/delete by id).
+  // Works for top-level sections and widgets nested inside container/column slots.
   const onSectionAction = (id: string, action: "up" | "down" | "duplicate" | "delete") => {
-    const idx = builder.sections.findIndex((node) => node.id === id);
-    if (idx < 0) return;
-    if (action === "up" || action === "down") {
-      const to = action === "up" ? idx - 1 : idx + 1;
-      if (to < 0 || to >= builder.sections.length) return;
-      builder.setSections((sections) => {
-        const next = [...sections];
-        const [moved] = next.splice(idx, 1);
-        next.splice(to, 0, moved);
-        return next;
-      });
+    if (action === "up") {
+      builder.setSections((sections) => moveNodeInParent(sections, id, -1));
+    } else if (action === "down") {
+      builder.setSections((sections) => moveNodeInParent(sections, id, 1));
     } else if (action === "duplicate") {
       builder.setSections((sections) => duplicateSection(sections, id));
     } else if (action === "delete") {
@@ -189,6 +219,7 @@ const BuilderScreen = ({ pageId }: Props) => {
         canRedo={builder.canRedo}
         onSaveDraft={builder.saveDraft}
         onPublish={builder.publish}
+        onBack={requestLeave}
         publishing={builder.publishing}
         blockers={builder.blockers}
         pageId={pageId}
@@ -257,12 +288,13 @@ const BuilderScreen = ({ pageId }: Props) => {
           </button>
         )}
         <BuilderCanvas
-          path={builder.page.path}
+          sections={builder.sections}
           device={device}
           selectedId={builder.selectedId}
           onSelect={builder.setSelectedId}
           empty={builder.sections.length === 0}
-          reloadKey={builder.canvasKey}
+          themeCss={builder.themeCss}
+          fontClass={builder.fontClass}
           onDropInsert={onDropInsert}
           onSectionAction={onSectionAction}
         />
@@ -281,9 +313,14 @@ const BuilderScreen = ({ pageId }: Props) => {
               entry={selected ? manifestByKey.get(selected.type) : undefined}
               blockers={builder.blockers.filter((blocker) => blocker.sectionId === selected?.id)}
               onChange={(patch) =>
-                selected && builder.setSections((sections) => updateSection(sections, selected.id, patch))
+                selected &&
+                builder.setSections((sections) =>
+                  updateSection(sections, selected.id, (node) =>
+                    // Keep Columns' drop slots in step with its column count.
+                    syncColumnSlots(typeof patch === "function" ? patch(node) : { ...node, ...patch }),
+                  ),
+                )
               }
-              onCommit={builder.saveDraft}
             />
           </div>
         ) : (
@@ -298,6 +335,30 @@ const BuilderScreen = ({ pageId }: Props) => {
           </button>
         )}
       </div>
+
+      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have edits that haven’t been saved. Save them as a draft before leaving, or discard them.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="ghost" onClick={leaveDiscard}>
+              Discard &amp; leave
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setLeaveOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={leaveAfterSave} disabled={builder.saveState === "saving"}>
+                {builder.saveState === "saving" ? "Saving…" : "Save draft & leave"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

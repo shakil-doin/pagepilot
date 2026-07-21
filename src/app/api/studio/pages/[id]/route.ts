@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handleApi, requireCapability, requirePageAccess, ApiAuthError } from "@/modules/auth/rbac";
-import { getPageForStudio, updatePageMeta, deletePage, archivePage } from "@/modules/pages/page.service";
+import {
+  getPageForStudio,
+  updatePageMeta,
+  deletePage,
+  archivePage,
+  unpublishPage,
+  setPageIndexing,
+} from "@/modules/pages/page.service";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -21,18 +28,26 @@ const metaSchema = z.object({
   hideFooter: z.boolean().optional(),
   locked: z.boolean().optional(),
   archived: z.boolean().optional(),
+  // Status/indexing controls (page-management concerns).
+  published: z.boolean().optional(), // false → take a live page back to draft
+  noindex: z.boolean().optional(), // true → remove from search indexing
 });
 
 export const PATCH = (req: NextRequest, { params }: Params) =>
   handleApi(async () => {
     const { id } = await params;
     const body = metaSchema.parse(await req.json());
-    // Path/lock changes are page-management concerns, not content edits
-    const user =
-      body.path !== undefined || body.locked !== undefined || body.archived !== undefined
-        ? await requireCapability("pages.manage")
-        : await requirePageAccess(id, "EDIT");
+    // Path/lock/status/indexing changes are page-management concerns, not content edits
+    const isManagement =
+      body.path !== undefined ||
+      body.locked !== undefined ||
+      body.archived !== undefined ||
+      body.published !== undefined ||
+      body.noindex !== undefined;
+    const user = isManagement ? await requireCapability("pages.manage") : await requirePageAccess(id, "EDIT");
     if (body.archived) return archivePage(user.id, id);
+    if (body.published === false) return unpublishPage(user.id, id);
+    if (body.noindex !== undefined) return setPageIndexing(user.id, id, body.noindex);
     return updatePageMeta(user.id, id, body);
   });
 
