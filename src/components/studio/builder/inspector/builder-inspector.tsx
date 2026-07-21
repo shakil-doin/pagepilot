@@ -15,6 +15,9 @@ type Props = {
   entry: WidgetManifestEntry | undefined;
   blockers: PublishBlocker[];
   onChange: (patch: Partial<SectionNode> | ((node: SectionNode) => SectionNode)) => void;
+  // Flush the draft save now (bypassing the debounce) after a discrete edit so
+  // the canvas reflects it immediately.
+  onCommit?: () => void;
 };
 
 const SPACING_OPTIONS = [
@@ -30,7 +33,7 @@ const BREAKPOINTS: { key: Breakpoint; label: string }[] = [
   { key: "desktop", label: "Desktop" },
 ];
 
-const BuilderInspector = ({ section, entry, blockers, onChange }: Props) => {
+const BuilderInspector = ({ section, entry, blockers, onChange, onCommit }: Props) => {
   if (!section) {
     return (
       <aside className="w-72 shrink-0 border-l border-hairline bg-surface p-4">
@@ -101,6 +104,7 @@ const BuilderInspector = ({ section, entry, blockers, onChange }: Props) => {
                 schema={schema}
                 value={section.props[key]}
                 onChange={(value) => setProp(key, value)}
+                onCommit={onCommit}
               />
             ))
           )}

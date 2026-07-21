@@ -11,12 +11,21 @@ type MediaValue = { id?: string; url?: string; alt?: string; kind?: string };
 type Props = {
   value: unknown;
   onChange: (value: unknown) => void;
+  // Picking/removing an image is a discrete action: flush the save now so the
+  // canvas (which only reflects saved state) updates immediately instead of
+  // waiting out the typing debounce.
+  onCommit?: () => void;
   accept?: "image" | "video" | "any";
 };
 
-const MediaControl = ({ value, onChange, accept = "image" }: Props) => {
+const MediaControl = ({ value, onChange, onCommit, accept = "image" }: Props) => {
   const [open, setOpen] = useState(false);
   const media = (value ?? {}) as MediaValue;
+
+  const pick = (next: unknown) => {
+    onChange(next);
+    onCommit?.();
+  };
 
   return (
     <div>
@@ -37,7 +46,7 @@ const MediaControl = ({ value, onChange, accept = "image" }: Props) => {
             <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
               Replace
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => onChange(undefined)} aria-label="Remove media">
+            <Button size="sm" variant="secondary" onClick={() => pick(undefined)} aria-label="Remove media">
               <X size={13} />
             </Button>
           </div>
@@ -52,7 +61,7 @@ const MediaControl = ({ value, onChange, accept = "image" }: Props) => {
           <span className="text-xs">Choose {accept === "any" ? "file" : accept}</span>
         </button>
       )}
-      <MediaPickerDialog open={open} onOpenChange={setOpen} accept={accept} onPick={(row) => onChange(toMediaRef(row))} />
+      <MediaPickerDialog open={open} onOpenChange={setOpen} accept={accept} onPick={(row) => pick(toMediaRef(row))} />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import type { ThemeTokens } from "@/types";
 
@@ -35,14 +35,23 @@ export const DEFAULT_TOKENS: ThemeTokens = {
   },
 };
 
-export const getActiveTheme = cached(
+const DEFAULT_ACTIVE_THEME: { id: string | null; name: string; tokens: ThemeTokens } = {
+  id: null,
+  name: "Default",
+  tokens: DEFAULT_TOKENS,
+};
+
+const activeThemeCached = cached(
   async () => {
     const theme = await db.theme.findFirst({ where: { active: true } });
-    return theme ? { id: theme.id, name: theme.name, tokens: theme.tokens as ThemeTokens } : { id: null, name: "Default", tokens: DEFAULT_TOKENS };
+    return theme ? { id: theme.id, name: theme.name, tokens: theme.tokens as ThemeTokens } : DEFAULT_ACTIVE_THEME;
   },
   ["active-theme"],
   [TAGS.theme],
 );
+
+// Never lets a DB failure break the site chrome: falls back to the default theme.
+export const getActiveTheme = () => withFallback("active-theme", activeThemeCached, DEFAULT_ACTIVE_THEME);
 
 // A color slot is either a token reference ("primary") or a raw CSS color.
 const colorRef = (tokens: ThemeTokens, value: string): string =>

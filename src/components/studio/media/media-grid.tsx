@@ -11,6 +11,8 @@ type Props = {
   layout: "grid" | "list";
   view: MediaView;
   isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onOpen: (media: MediaRow) => void;
@@ -24,6 +26,8 @@ const MediaGrid = ({
   layout,
   view,
   isLoading,
+  isError,
+  onRetry,
   selectedIds,
   onToggleSelect,
   onOpen,
@@ -35,6 +39,22 @@ const MediaGrid = ({
     return (
       <div className="flex justify-center py-20">
         <Spinner className="text-muted" />
+      </div>
+    );
+  }
+
+  // A failed fetch must NOT look like an empty library — otherwise a database
+  // hiccup reads as "my files were deleted". Show an honest error with a retry.
+  if (isError) {
+    return (
+      <div className="mx-4 my-8 rounded-xl border border-dashed border-danger/50 py-16 text-center">
+        <p className="text-sm font-medium text-ink">Couldn&apos;t load your media</p>
+        <p className="mt-1 text-sm text-muted">
+          The database didn&apos;t respond just now. Your files are safe — this is a connection hiccup, not a deletion.
+        </p>
+        <Button variant="secondary" size="sm" className="mt-4" onClick={onRetry}>
+          Try again
+        </Button>
       </div>
     );
   }

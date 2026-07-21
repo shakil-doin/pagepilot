@@ -1,7 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import { APP } from "@/config/app.config";
 
@@ -51,7 +51,7 @@ export const getSetting = async <T = unknown>(key: SettingKey, fallback: T): Pro
 };
 
 // Cached variant for the public site render path.
-export const getSettingCached = cached(
+const settingCached = cached(
   async (key: string) => {
     const row = await db.setting.findUnique({ where: { key } });
     return row ? unwrap(key, row.value) : null;
@@ -59,6 +59,11 @@ export const getSettingCached = cached(
   ["setting"],
   [TAGS.settings],
 );
+
+// Public render-path reader: a DB failure yields null (callers already treat
+// null as "use defaults") instead of crashing the page.
+export const getSettingCached = (key: SettingKey): Promise<unknown> =>
+  withFallback<unknown>(`setting:${key}`, () => settingCached(key), null);
 
 export const setSetting = async (userId: string | null, key: SettingKey, value: unknown) => {
   const stored = ENCRYPTED_KEYS.includes(key) ? encrypt(JSON.stringify(value)) : (value as object);

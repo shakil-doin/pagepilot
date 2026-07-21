@@ -107,6 +107,12 @@ const BuilderScreen = ({ pageId }: Props) => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       const editing = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+      // Save draft works everywhere, including while typing in an input.
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        builder.saveDraft();
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
         if (editing) return;
         event.preventDefault();
@@ -128,6 +134,19 @@ const BuilderScreen = ({ pageId }: Props) => {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [builder]);
+
+  // Warn before a tab close / hard navigation drops unsaved edits. (SPA
+  // navigation away is covered by the flush-on-unmount in useBuilder.)
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (builder.saveState === "dirty" || builder.saveState === "offline") {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [builder.saveState]);
 
   if (builder.pageLoading || !builder.page) {
     return <div className="flex h-full items-center justify-center text-sm text-muted">Loading builder…</div>;
@@ -168,6 +187,7 @@ const BuilderScreen = ({ pageId }: Props) => {
         onRedo={builder.redo}
         canUndo={builder.canUndo}
         canRedo={builder.canRedo}
+        onSaveDraft={builder.saveDraft}
         onPublish={builder.publish}
         publishing={builder.publishing}
         blockers={builder.blockers}
@@ -263,6 +283,7 @@ const BuilderScreen = ({ pageId }: Props) => {
               onChange={(patch) =>
                 selected && builder.setSections((sections) => updateSection(sections, selected.id, patch))
               }
+              onCommit={builder.saveDraft}
             />
           </div>
         ) : (

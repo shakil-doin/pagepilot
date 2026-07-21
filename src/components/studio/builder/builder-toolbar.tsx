@@ -12,6 +12,7 @@ import {
   CaretDown,
   ClockCounterClockwise,
   Eye,
+  FloppyDisk,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ type Props = {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onSaveDraft: () => void;
   onPublish: (note?: string) => void;
   publishing: boolean;
   blockers: PublishBlocker[];
@@ -71,6 +73,7 @@ const BuilderToolbar = ({
   onRedo,
   canUndo,
   canRedo,
+  onSaveDraft,
   onPublish,
   publishing,
   blockers,
@@ -146,6 +149,16 @@ const BuilderToolbar = ({
         </Button>
         <Button variant="ghost" size="icon" onClick={() => setRevisionsOpen(true)} aria-label="Revision history">
           <ClockCounterClockwise size={16} />
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onSaveDraft}
+          disabled={saveState === "saving" || saveState === "saved"}
+          title="Save draft (⌘/Ctrl+S)"
+        >
+          <FloppyDisk size={14} className="mr-1.5" />
+          {saveState === "saving" ? "Saving…" : "Save draft"}
         </Button>
         <Button variant="secondary" size="sm" asChild>
           <a href={`/api/preview?path=${encodeURIComponent(page.path)}`} target="_blank" rel="noreferrer">

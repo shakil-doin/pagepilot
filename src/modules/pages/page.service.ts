@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import { normalizePath } from "@/lib/utils";
 import { isAdmin } from "@/modules/auth/permissions";
@@ -9,6 +9,12 @@ import type { SectionNode } from "@/types";
 
 // ── Public reads (cached, static-friendly) ───────────────────────────────────
 
+// NOT wrapped in withFallback on purpose: a null return means "this page does
+// not exist" and the route turns it into a 404. A database error must NOT be
+// squashed into null here — that would 404 a page that really exists whenever
+// the DB has a transient hiccup. Let the error propagate (db.ts already retries
+// transient failures) so a real outage surfaces as a retryable error, never a
+// misleading 404. Chrome (theme/menu/settings) still degrades via withFallback.
 export const getPublishedPage = (path: string) =>
   cached(
     async (p: string) => {
@@ -35,7 +41,7 @@ export const getPublishedPage = (path: string) =>
     [TAGS.page(path), TAGS.pages],
   )(path);
 
-export const listPublishedPathsCached = cached(
+const publishedPathsCached = cached(
   async () => {
     const pages = await db.page.findMany({
       where: { status: "PUBLISHED", publishedRevisionId: { not: null } },
@@ -46,6 +52,8 @@ export const listPublishedPathsCached = cached(
   ["published-paths"],
   [TAGS.pages],
 );
+
+export const listPublishedPathsCached = () => withFallback("published-paths", publishedPathsCached, []);
 
 // Draft read for the preview iframe (never cached).
 export const getDraftPage = async (pageId: string) => {

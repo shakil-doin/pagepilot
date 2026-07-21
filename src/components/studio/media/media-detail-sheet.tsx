@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, Trash, VideoCamera, Warning } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, FileText, Trash, VideoCamera, Warning } from "@phosphor-icons/react";
 import { api, ApiClientError } from "@/services/api";
 import type { MediaRow } from "@/services/media";
 import { formatBytes, formatDate } from "@/lib/utils";
@@ -40,6 +40,7 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
   const [alt, setAlt] = useState("");
   const [caption, setCaption] = useState("");
   const [trashOpen, setTrashOpen] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["media-detail", mediaId],
@@ -91,6 +92,29 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
     },
     onError: (err) => toast.error(err instanceof ApiClientError ? err.message : "Trash failed"),
   });
+
+  const restoreMutation = useMutation({
+    mutationFn: () => api.post("/api/studio/media/restore", { ids: [mediaId] }),
+    onSuccess: () => {
+      toast.success("File restored");
+      queryClient.invalidateQueries({ queryKey: ["media"] });
+      onOpenChange(false);
+    },
+    onError: (err) => toast.error(err instanceof ApiClientError ? err.message : "Restore failed"),
+  });
+
+  // Permanent delete: also removes the asset from ImageKit (see purgeMedia).
+  const purgeMutation = useMutation({
+    mutationFn: () => api.del(`/api/studio/media/${mediaId}?purge=1`),
+    onSuccess: () => {
+      toast.success("File deleted forever");
+      queryClient.invalidateQueries({ queryKey: ["media"] });
+      onOpenChange(false);
+    },
+    onError: (err) => toast.error(err instanceof ApiClientError ? err.message : "Delete failed"),
+  });
+
+  const trashBusy = restoreMutation.isPending || purgeMutation.isPending;
 
   const dirty =
     media !== undefined &&
@@ -219,9 +243,21 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
                 Move to trash
               </Button>
             ) : (
-              <Badge variant="danger" className="self-start">
-                In trash
-              </Badge>
+              <div className="space-y-2">
+                <Badge variant="danger" className="self-start">
+                  In trash
+                </Badge>
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => restoreMutation.mutate()} disabled={trashBusy}>
+                    <ArrowCounterClockwise size={14} className="mr-1.5" />
+                    Restore
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => setPurgeOpen(true)} disabled={trashBusy}>
+                    <Trash size={14} className="mr-1.5" />
+                    Delete forever
+                  </Button>
+                </div>
+              </div>
             )}
 
             <ConfirmDialog
@@ -239,6 +275,18 @@ const MediaDetailSheet = ({ mediaId, onOpenChange }: Props) => {
               onConfirm={() => {
                 trashMutation.mutate();
                 setTrashOpen(false);
+              }}
+            />
+
+            <ConfirmDialog
+              open={purgeOpen}
+              onOpenChange={setPurgeOpen}
+              title={`Delete "${media.filename}" forever?`}
+              description="The file and its stored data are removed permanently, including from ImageKit. This cannot be undone."
+              confirmLabel="Delete forever"
+              onConfirm={() => {
+                purgeMutation.mutate();
+                setPurgeOpen(false);
               }}
             />
           </div>

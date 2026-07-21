@@ -23,13 +23,24 @@ type Props = {
   schema: SchemaNode;
   value: unknown;
   onChange: (value: unknown) => void;
+  // Flush the save immediately after a discrete change (a pick / toggle / choice)
+  // so the canvas — which only mirrors saved state — updates without waiting out
+  // the typing debounce. Text-like controls keep debouncing.
+  onCommit?: () => void;
 };
 
 // One prop, one control: the dispatcher the whole inspector is built from.
-const FieldControl = ({ label, schema, value, onChange }: Props) => {
+const FieldControl = ({ label, schema, value, onChange, onCommit }: Props) => {
   const annotation = annotationOf(schema);
   const resolved = resolveNode(schema);
   const effective = value === undefined ? resolved.default : value;
+
+  // Discrete controls change value in one gesture, so save + refresh the canvas
+  // right away rather than after the debounce.
+  const commit = (next: unknown) => {
+    onChange(next);
+    onCommit?.();
+  };
 
   const control = (() => {
     switch (annotation.control) {
@@ -48,11 +59,11 @@ const FieldControl = ({ label, schema, value, onChange }: Props) => {
           />
         );
       case "segmented":
-        return <SegmentedControl value={effective} onChange={onChange} options={optionsOf(schema)} />;
+        return <SegmentedControl value={effective} onChange={commit} options={optionsOf(schema)} />;
       case "select":
-        return <SelectControl value={effective} onChange={onChange} options={optionsOf(schema)} />;
+        return <SelectControl value={effective} onChange={commit} options={optionsOf(schema)} />;
       case "switch":
-        return <SwitchControl value={effective} onChange={onChange} />;
+        return <SwitchControl value={effective} onChange={commit} />;
       case "slider":
         return (
           <SliderControl
@@ -64,13 +75,13 @@ const FieldControl = ({ label, schema, value, onChange }: Props) => {
           />
         );
       case "date":
-        return <DateControl value={effective} onChange={onChange} />;
+        return <DateControl value={effective} onChange={commit} />;
       case "color":
         return <ColorControl value={effective} onChange={onChange} />;
       case "media":
-        return <MediaControl value={effective} onChange={onChange} accept={annotation.accept ?? "image"} />;
+        return <MediaControl value={effective} onChange={onChange} onCommit={onCommit} accept={annotation.accept ?? "image"} />;
       case "icon":
-        return <IconControl value={effective} onChange={onChange} />;
+        return <IconControl value={effective} onChange={commit} />;
       case "link":
         return <LinkControl value={effective} onChange={onChange} />;
       case "list":
@@ -94,6 +105,7 @@ const FieldControl = ({ label, schema, value, onChange }: Props) => {
                 schema={childSchema}
                 value={groupValue[key]}
                 onChange={(childValue) => onChange({ ...groupValue, [key]: childValue })}
+                onCommit={onCommit}
               />
             ))}
           </div>

@@ -1,10 +1,10 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import type { MenuItem } from "@/types";
 
-export const getMenu = cached(
+const menuCached = cached(
   async (slot: string): Promise<MenuItem[]> => {
     const menu = await db.menu.findUnique({ where: { slot } });
     return (menu?.items as MenuItem[]) ?? [];
@@ -12,6 +12,9 @@ export const getMenu = cached(
   ["menu"],
   [TAGS.menu],
 );
+
+// Header/footer render even when the DB is down: an empty menu, not a crash.
+export const getMenu = (slot: string) => withFallback(`menu:${slot}`, () => menuCached(slot), [] as MenuItem[]);
 
 export const listMenus = () => db.menu.findMany({ orderBy: { slot: "asc" } });
 

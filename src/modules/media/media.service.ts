@@ -9,6 +9,30 @@ import type { SectionNode } from "@/types";
 const kindFromMime = (mime: string): MediaKind =>
   mime.startsWith("image/") ? "IMAGE" : mime.startsWith("video/") ? "VIDEO" : "FILE";
 
+// Media.filename is a display label, not a DB-unique key (files are addressed
+// by storageKey/id). To keep the library readable, a new or renamed file whose
+// name already exists in the SAME folder gets an OS-style " (2)", " (3)" … suffix
+// instead of a confusing exact duplicate. Scope is per folder (non-trashed),
+// like a filesystem — different folders may reuse a name.
+export const uniqueFilename = async (
+  desired: string,
+  folderId: string | null,
+  excludeId?: string,
+): Promise<string> => {
+  const dot = desired.lastIndexOf(".");
+  const base = dot > 0 ? desired.slice(0, dot) : desired; // dot>0 so ".env"-style names keep their name
+  const ext = dot > 0 ? desired.slice(dot) : "";
+  const rows = await db.media.findMany({
+    where: { folderId, deletedAt: null, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    select: { filename: true },
+  });
+  const taken = new Set(rows.map((r) => r.filename));
+  if (!taken.has(desired)) return desired;
+  let n = 2; // the un-suffixed name is effectively "1"; duplicates start at (2)
+  while (taken.has(`${base} (${n})${ext}`)) n++;
+  return `${base} (${n})${ext}`;
+};
+
 export const ALLOWED_MIME = [
   "image/jpeg", "image/png", "image/webp", "image/avif", "image/gif", "image/svg+xml",
   "video/mp4", "video/webm",
@@ -64,12 +88,16 @@ export const commitMedia = async (
     }
   }
 
+  // De-duplicate the display name within the target folder so the library
+  // never shows two identical filenames side by side.
+  const filename = await uniqueFilename(data.filename, data.folderId ?? null);
+
   const media = await db.media.create({
     data: {
       kind,
       storageKey: data.storageKey,
       url,
-      filename: data.filename,
+      filename,
       mimeType: data.mimeType,
       sizeBytes,
       width,
@@ -104,7 +132,13 @@ export const listMedia = async (params: {
         }
       : params.trash
         ? {}
-        : { folderId: params.folderId ?? null }),
+        : // A specific folder id filters to that folder. "All" and the media
+          // picker send no folder id (null/undefined) and must show media from
+          // EVERY folder, not just un-filed root items — that was the bug where
+          // images inside folders vanished from "All" and the picker.
+          params.folderId == null
+          ? {}
+          : { folderId: params.folderId }),
   };
   const items = await db.media.findMany({
     where,
@@ -121,7 +155,16 @@ export const updateMedia = async (
   id: string,
   data: Partial<{ filename: string; alt: string; caption: string; focalX: number; focalY: number; folderId: string | null }>,
 ) => {
-  const media = await db.media.update({ where: { id }, data });
+  let patch = data;
+  // A rename that would collide with another file in the same folder is
+  // auto-suffixed. If the file is also being moved (folderId in this patch),
+  // de-duplicate against the destination folder, not the current one.
+  if (data.filename !== undefined) {
+    const current = await db.media.findUnique({ where: { id }, select: { folderId: true } });
+    const targetFolder = data.folderId !== undefined ? data.folderId : (current?.folderId ?? null);
+    patch = { ...data, filename: await uniqueFilename(data.filename, targetFolder, id) };
+  }
+  const media = await db.media.update({ where: { id }, data: patch });
   await audit(userId, "media.update", `Media:${id}`);
   return media;
 };
@@ -141,10 +184,25 @@ export const purgeMedia = async (userId: string, ids?: string[]) => {
     ? { id: { in: ids }, deletedAt: { not: null } }
     : { deletedAt: { lt: new Date(Date.now() - 30 * 24 * 3600 * 1000) } };
   const doomed = await db.media.findMany({ where, select: { id: true, storageKey: true } });
-  for (const media of doomed) await deleteObject(media.storageKey);
-  await db.media.deleteMany({ where: { id: { in: doomed.map((m) => m.id) } } });
-  await audit(userId, "media.purge", `Media:${doomed.length} items`);
-  return doomed.length;
+
+  // Delete each asset independently: one ImageKit failure must not abort the
+  // batch. Only rows whose object was actually removed get deleted from the DB;
+  // a failed one stays in the trash so it can be retried, never orphaned.
+  const removedIds: string[] = [];
+  for (const media of doomed) {
+    try {
+      await deleteObject(media.storageKey);
+      removedIds.push(media.id);
+    } catch (err) {
+      console.error(`[media] purge failed for Media:${media.id} (${media.storageKey})`, err);
+    }
+  }
+
+  if (removedIds.length > 0) {
+    await db.media.deleteMany({ where: { id: { in: removedIds } } });
+    await audit(userId, "media.purge", `Media:${removedIds.length} items`);
+  }
+  return removedIds.length;
 };
 
 // ── Folders ──────────────────────────────────────────────────────────────────
