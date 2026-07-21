@@ -1,8 +1,11 @@
 "use client";
 
-import { WarningCircle } from "@phosphor-icons/react";
+import { useState } from "react";
+import { WarningCircle, Globe } from "@phosphor-icons/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import FieldControl from "@/components/studio/builder/inspector/field-control";
@@ -15,6 +18,8 @@ type Props = {
   entry: WidgetManifestEntry | undefined;
   blockers: PublishBlocker[];
   onChange: (patch: Partial<SectionNode> | ((node: SectionNode) => SectionNode)) => void;
+  // Convert this widget into a reusable global one (edit once, updates everywhere).
+  onMakeGlobal?: (name: string) => void;
 };
 
 const SPACING_OPTIONS = [
@@ -30,7 +35,10 @@ const BREAKPOINTS: { key: Breakpoint; label: string }[] = [
   { key: "desktop", label: "Desktop" },
 ];
 
-const BuilderInspector = ({ section, entry, blockers, onChange }: Props) => {
+const BuilderInspector = ({ section, entry, blockers, onChange, onMakeGlobal }: Props) => {
+  const [globalName, setGlobalName] = useState("");
+  const [globalFormOpen, setGlobalFormOpen] = useState(false);
+
   if (!section) {
     return (
       <aside className="w-72 shrink-0 border-l border-hairline bg-surface p-4">
@@ -187,6 +195,73 @@ const BuilderInspector = ({ section, entry, blockers, onChange }: Props) => {
             Hidden (all devices)
             <Switch checked={Boolean(section.hidden)} onCheckedChange={(hidden) => onChange({ hidden })} />
           </label>
+
+          <div className="space-y-1">
+            <span className="block text-[11px] font-medium text-muted">Custom CSS</span>
+            <Textarea
+              value={section.customCss ?? ""}
+              onChange={(e) => onChange({ customCss: e.target.value || undefined })}
+              placeholder={"padding: 40px;\nbackground: #f5f5f5;\n& .pp-heading { color: #4f46e5; }"}
+              rows={5}
+              className="font-mono text-[11px] leading-relaxed"
+              spellCheck={false}
+            />
+            <p className="text-[10px] text-muted">
+              Applies to <strong>this widget only</strong>. Use <code>&amp;</code> to target elements inside it.
+            </p>
+          </div>
+
+          {!isGlobal && !isCustom && onMakeGlobal ? (
+            <div className="space-y-1.5 border-t border-hairline pt-3">
+              {globalFormOpen ? (
+                <div className="space-y-2">
+                  <Input
+                    value={globalName}
+                    onChange={(e) => setGlobalName(e.target.value)}
+                    placeholder="Global widget name"
+                    className="h-8 text-xs"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="secondary" className="flex-1" onClick={() => setGlobalFormOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="flex-1"
+                      disabled={!globalName.trim()}
+                      onClick={() => {
+                        onMakeGlobal(globalName.trim());
+                        setGlobalFormOpen(false);
+                        setGlobalName("");
+                      }}
+                    >
+                      Create
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => {
+                    setGlobalName(entry?.meta.name ?? "");
+                    setGlobalFormOpen(true);
+                  }}
+                >
+                  <Globe size={14} className="mr-1.5" />
+                  Make reusable (global)
+                </Button>
+              )}
+              <p className="text-[10px] text-muted">
+                Turns this into a shared widget. Editing it under Studio → Widgets updates every page that uses it.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-1">
             <span className="block text-[11px] font-medium text-muted">Section id</span>
             <p className="font-mono text-[10px] text-muted">{section.id}</p>

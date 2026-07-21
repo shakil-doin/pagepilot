@@ -25,7 +25,7 @@ export type StudioPage = {
 export type ManifestData = {
   manifest: WidgetManifestEntry[];
   customWidgets: { id: string; name: string; description: string | null; thumbnail: string | null }[];
-  globalWidgets: { id: string; name: string; type: string }[];
+  globalWidgets: { id: string; name: string; type: string; props: Record<string, unknown> }[];
   // Theme tokens + font class for the in-document canvas (see manifest route).
   themeCss?: string;
   fontClass?: string;

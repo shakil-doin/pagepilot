@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api, ApiClientError } from "@/services/api";
 import { useBuilder } from "@/components/studio/builder/use-builder";
 import {
   Dialog,
@@ -74,6 +77,46 @@ const BuilderScreen = ({ pageId }: Props) => {
     setLeaveOpen(false);
     router.push("/studio/pages");
   }, [router]);
+
+  const queryClient = useQueryClient();
+
+  // Resolved global widgets, keyed by id, so the canvas can render "global"
+  // reference nodes live instead of as placeholders.
+  const globalWidgets = useMemo(
+    () => Object.fromEntries((builder.manifest?.globalWidgets ?? []).map((g) => [g.id, g])),
+    [builder.manifest],
+  );
+
+  // Convert the selected widget into a reusable global one: create the shared
+  // definition, then turn this node into a reference to it. Editing that global
+  // (Studio → Widgets) then updates every page that uses it.
+  const makeGlobalMutation = useMutation({
+    mutationFn: (payload: { name: string; type: string; props: Record<string, unknown> }) =>
+      api.post<{ id: string }>("/api/studio/widgets/global", payload),
+  });
+  const makeGlobal = useCallback(
+    (name: string) => {
+      const node = builder.selectedId ? findSection(builder.sections, builder.selectedId) : null;
+      if (!node) return;
+      makeGlobalMutation.mutate(
+        { name, type: node.type, props: node.props },
+        {
+          onSuccess: (widget) => {
+            builder.setSections((sections) =>
+              updateSection(sections, node.id, { type: "global", globalId: widget.id }),
+            );
+            queryClient.invalidateQueries({ queryKey: ["widget-manifest"] });
+            toast.success(`"${name}" is now a reusable global widget`);
+          },
+          onError: (err) =>
+            toast.error(err instanceof ApiClientError ? err.message : "Couldn’t create the global widget"),
+        },
+      );
+    },
+    // makeGlobalMutation identity is stable per react-query
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [builder, queryClient],
+  );
 
   // Build a fresh section node. List widgets already carry seeded sample content
   // in their manifest defaults (see seedListDefaults), so a drop shows something
@@ -295,6 +338,7 @@ const BuilderScreen = ({ pageId }: Props) => {
           empty={builder.sections.length === 0}
           themeCss={builder.themeCss}
           fontClass={builder.fontClass}
+          globalWidgets={globalWidgets}
           onDropInsert={onDropInsert}
           onSectionAction={onSectionAction}
         />
@@ -321,6 +365,7 @@ const BuilderScreen = ({ pageId }: Props) => {
                   ),
                 )
               }
+              onMakeGlobal={makeGlobal}
             />
           </div>
         ) : (

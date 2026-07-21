@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import CanvasRender from "@/components/studio/builder/canvas-render";
+import CanvasRender, { type GlobalWidgetLite } from "@/components/studio/builder/canvas-render";
 import { PP_INSERT_MIME } from "@/components/studio/builder/builder-palette";
 import type { SectionNode } from "@/types";
 // Site base styles for the in-document canvas. Everything is namespaced under
@@ -24,6 +24,7 @@ type Props = {
   empty: boolean;
   themeCss?: string;
   fontClass?: string;
+  globalWidgets?: Record<string, GlobalWidgetLite>;
   onDropInsert?: (payload: string, target: DropTarget) => void;
   onSectionAction?: (id: string, action: SectionAction) => void;
 };
@@ -80,6 +81,7 @@ const BuilderCanvas = ({
   empty,
   themeCss,
   fontClass,
+  globalWidgets,
   onDropInsert,
   onSectionAction,
 }: Props) => {
@@ -259,7 +261,7 @@ const BuilderCanvas = ({
         ) : null}
 
         <div ref={frameRef} className={cn("pp-site pp-canvas min-h-full", fontClass)}>
-          <CanvasRender sections={sections} gapIndex={gapIndex} />
+          <CanvasRender sections={sections} gapIndex={gapIndex} globalWidgets={globalWidgets} />
         </div>
 
         {dropLine ? (

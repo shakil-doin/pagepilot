@@ -11,6 +11,7 @@ export const sectionNodeSchema: z.ZodType<SectionNode> = z.lazy(() =>
     globalId: z.string().optional(),
     adminLabel: z.string().optional(),
     hidden: z.boolean().optional(),
+    customCss: z.string().max(4000).optional(),
     spacing: z
       .object({
         top: z.enum(["none", "sm", "md", "lg"]).optional(),

@@ -1,9 +1,14 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, createContext, useContext } from "react";
 import { getClientWidget } from "@/widgets/registry.client";
 import { cn } from "@/lib/utils";
 import type { Breakpoint, SectionNode, SpacingSize } from "@/types";
+
+// Resolved global widgets by id, so a "global" reference node can render its
+// underlying widget live (instead of a placeholder) on the canvas.
+export type GlobalWidgetLite = { id: string; name: string; type: string; props: Record<string, unknown> };
+const GlobalWidgetsContext = createContext<Record<string, GlobalWidgetLite>>({});
 
 // Renders the section tree straight from React state — no iframe, no server
 // round-trip — so edits show on the canvas instantly. Mirrors the public
@@ -38,6 +43,7 @@ const Invalid = ({ type, message }: { type: string; message: string }) => (
 );
 
 const RenderNode = ({ node, index }: { node: SectionNode; index: number }) => {
+  const globals = useContext(GlobalWidgetsContext);
   if (node.hidden) return null;
   if (!node || typeof node.type !== "string") {
     return <Invalid type={String(node?.type)} message="Malformed section node" />;
@@ -49,30 +55,46 @@ const RenderNode = ({ node, index }: { node: SectionNode; index: number }) => {
     paddingBottom: node.spacing?.bottom ? SPACING[node.spacing.bottom] : undefined,
   };
 
+  // Per-instance custom CSS, scoped to this node's id so it never touches other
+  // uses of the same widget.
+  const cssClass = node.customCss ? `pp-c-${node.id}` : undefined;
   const wrap = (body: React.ReactNode) => (
-    <div className={cn(hideOn.map((bp) => HIDE_CLASS[bp]))} style={spacingStyle} data-pp-section={node.id} data-pp-name={node.adminLabel || node.type}>
+    <div
+      className={cn(hideOn.map((bp) => HIDE_CLASS[bp]), cssClass)}
+      style={spacingStyle}
+      data-pp-section={node.id}
+      data-pp-name={node.adminLabel || node.type}
+    >
+      {node.customCss ? <style>{`.${cssClass}{${node.customCss}}`}</style> : null}
       {body}
     </div>
   );
 
-  // Data-backed widgets can't render in the browser without the server; show a
-  // placeholder so the section is still visible, selectable and orderable.
-  if (node.type === "global") {
-    return wrap(<Placeholder label={node.adminLabel || "Global widget"} hint="Shared widget — its live content shows on the published page." />);
+  // Resolve the effective widget: a "global" reference renders its underlying
+  // widget from the shared definition, so edits to the global show everywhere.
+  let type = node.type;
+  let widgetProps: Record<string, unknown> = node.props ?? {};
+  if (type === "global") {
+    const g = node.globalId ? globals[node.globalId] : undefined;
+    if (!g) {
+      return wrap(<Placeholder label={node.adminLabel || "Global widget"} hint="Shared widget — edit it under Studio → Widgets." />);
+    }
+    type = g.type;
+    widgetProps = g.props;
   }
-  if (node.type.startsWith("custom:")) {
+  if (type.startsWith("custom:")) {
     return wrap(<Placeholder label={node.adminLabel || "Custom widget"} hint="Composite widget — its live content shows on the published page." />);
   }
 
-  const widget = getClientWidget(node.type);
-  if (!widget) return wrap(<Invalid type={node.type} message="Unknown widget type" />);
+  const widget = getClientWidget(type);
+  if (!widget) return wrap(<Invalid type={type} message="Unknown widget type" />);
   if (widget.serverOnly) {
     return wrap(<Placeholder label={widget.meta.name} hint="Dynamic content — appears on the published page." />);
   }
 
-  const parsed = widget.schema.safeParse(node.props ?? {});
+  const parsed = widget.schema.safeParse(widgetProps);
   if (!parsed.success) {
-    return wrap(<Invalid type={node.type} message={parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")} />);
+    return wrap(<Invalid type={type} message={parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")} />);
   }
 
   const Component = widget.component;
@@ -105,8 +127,16 @@ const DropGap = () => (
   </div>
 );
 
-const CanvasRender = ({ sections, gapIndex = null }: { sections: SectionNode[]; gapIndex?: number | null }) => (
-  <>
+const CanvasRender = ({
+  sections,
+  gapIndex = null,
+  globalWidgets = {},
+}: {
+  sections: SectionNode[];
+  gapIndex?: number | null;
+  globalWidgets?: Record<string, GlobalWidgetLite>;
+}) => (
+  <GlobalWidgetsContext.Provider value={globalWidgets}>
     {sections.map((node, index) => (
       <Fragment key={node.id}>
         {gapIndex === index ? <DropGap /> : null}
@@ -114,7 +144,7 @@ const CanvasRender = ({ sections, gapIndex = null }: { sections: SectionNode[]; 
       </Fragment>
     ))}
     {gapIndex != null && gapIndex >= sections.length ? <DropGap /> : null}
-  </>
+  </GlobalWidgetsContext.Provider>
 );
 
 export default CanvasRender;

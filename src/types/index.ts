@@ -12,6 +12,9 @@ export type SectionNode = {
   globalId?: string;
   adminLabel?: string;
   hidden?: boolean;
+  // Per-instance custom CSS, scoped to THIS widget only (not the widget type),
+  // applied to the widget's wrapper element. Supports native CSS nesting (&).
+  customCss?: string;
   spacing?: { top?: SpacingSize; bottom?: SpacingSize };
   responsive?: {
     hideOn?: Breakpoint[];
