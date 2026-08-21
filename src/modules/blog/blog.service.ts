@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { slugify } from "@/lib/utils";
@@ -10,7 +10,7 @@ const POSTS_PER_PAGE = 12;
 
 // ── Public reads (cached, static-friendly) ───────────────────────────────────
 
-export const listLatestPostsCached = cached(
+const latestPostsCached = cached(
   async (count: number) => {
     const posts = await db.post.findMany({
       where: { status: "PUBLISHED" },
@@ -36,7 +36,11 @@ export const listLatestPostsCached = cached(
   [TAGS.blogIndex],
 );
 
-export const listPublishedPostsCached = cached(
+// Reachable from any page via the blog-latest widget: an empty list beats a crash.
+export const listLatestPostsCached = (count: number) =>
+  withFallback(`latest-posts:${count}`, () => latestPostsCached(count), []);
+
+const publishedPostsCached = cached(
   async (page: number) => {
     const [posts, total] = await Promise.all([
       db.post.findMany({
@@ -63,6 +67,12 @@ export const listPublishedPostsCached = cached(
   [TAGS.blogIndex],
 );
 
+// Primary content of the blog index — not wrapped: a DB error must surface as a
+// retryable error, not a fake "no posts" page. (See note in page.service.ts.)
+export const listPublishedPostsCached = publishedPostsCached;
+
+// Primary content of a post page — null means "no such post" → 404. A DB error
+// must propagate rather than masquerade as a 404, so this stays unwrapped too.
 export const getPublishedPostCached = cached(
   async (slug: string) => {
     return db.post.findFirst({
@@ -81,7 +91,10 @@ export const getPublishedPostCached = cached(
 );
 
 export const listPublishedSlugs = () =>
-  db.post.findMany({ where: { status: "PUBLISHED" }, select: { slug: true, updatedAt: true, seo: { select: { excludeFromSitemap: true } } } });
+  withFallback("published-slugs", () =>
+    db.post.findMany({ where: { status: "PUBLISHED" }, select: { slug: true, updatedAt: true, seo: { select: { excludeFromSitemap: true } } } }),
+    [],
+  );
 
 // ── TipTap JSON → HTML (pre-rendered at publish) ─────────────────────────────
 

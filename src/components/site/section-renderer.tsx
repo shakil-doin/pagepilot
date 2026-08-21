@@ -146,15 +146,22 @@ export const renderSection = async (
     props = globalWidget.props;
   }
 
+  // Per-instance custom CSS, scoped to this node's id (see SectionNode.customCss).
+  const cssClass = node.customCss ? `pp-c-${node.id}` : undefined;
+  const customStyle = node.customCss ? (
+    <style dangerouslySetInnerHTML={{ __html: `.${cssClass}{${node.customCss}}` }} />
+  ) : null;
+
   if (type.startsWith("custom:")) {
     const customWidget = await getCustomWidgetCached(type.slice("custom:".length));
     if (!customWidget) return options.preview ? <InvalidWidget type={type} message="Missing custom widget" /> : null;
     const tree = applyExposedProps(customWidget.tree, customWidget.exposedProps, props);
     return (
       <div
-        className={cn((node.responsive?.hideOn ?? []).map((bp) => HIDE_CLASS[bp]))}
+        className={cn((node.responsive?.hideOn ?? []).map((bp) => HIDE_CLASS[bp]), cssClass)}
         data-pp-section={options.preview ? node.id : undefined}
       >
+        {customStyle}
         {await renderSections(tree, options)}
       </div>
     );
@@ -186,10 +193,11 @@ export const renderSection = async (
 
   return (
     <div
-      className={cn(hideOn.map((bp) => HIDE_CLASS[bp]))}
+      className={cn(hideOn.map((bp) => HIDE_CLASS[bp]), cssClass)}
       style={spacingStyle}
       data-pp-section={options.preview ? node.id : undefined}
     >
+      {customStyle}
       {body}
     </div>
   );

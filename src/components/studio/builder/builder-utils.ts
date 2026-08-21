@@ -45,6 +45,20 @@ export const moveSection = (sections: SectionNode[], from: number, to: number): 
   return next;
 };
 
+// Move a node up/down among its siblings, whether it sits at the top level or
+// inside a container/column slot. No-op at either end of its sibling list.
+export const moveNodeInParent = (sections: SectionNode[], id: string, dir: -1 | 1): SectionNode[] => {
+  const idx = sections.findIndex((node) => node.id === id);
+  if (idx >= 0) {
+    const to = idx + dir;
+    if (to < 0 || to >= sections.length) return sections;
+    return moveSection(sections, idx, to);
+  }
+  return sections.map((node) =>
+    node.children ? { ...node, children: node.children.map((slot) => moveNodeInParent(slot, id, dir)) } : node,
+  );
+};
+
 export const findSection = (sections: SectionNode[], id: string): SectionNode | null => {
   for (const node of sections) {
     if (node.id === id) return node;
@@ -69,6 +83,36 @@ export const updateSection = (
       return { ...node, children: node.children.map((slot) => updateSection(slot, id, patch)) };
     }
     return node;
+  });
+
+// A Columns widget draws `count` visual columns, but its droppable slots come
+// from node.children — so the two must stay in sync or the extra columns have
+// nowhere to drop. Grows with empty slots; shrinks non-destructively by moving
+// any widgets in the removed columns into the last kept column.
+export const syncColumnSlots = (node: SectionNode): SectionNode => {
+  if (node.type !== "columns") return node;
+  const raw = Number((node.props as { count?: number })?.count ?? 2);
+  const count = Math.min(Math.max(Number.isFinite(raw) ? raw : 2, 2), 6);
+  const slots = node.children ?? [];
+  if (slots.length === count) return node;
+  if (slots.length < count) {
+    const added = Array.from({ length: count - slots.length }, () => [] as SectionNode[]);
+    return { ...node, children: [...slots, ...added] };
+  }
+  const kept = slots.slice(0, count).map((slot) => [...slot]);
+  const overflow = slots.slice(count).flat();
+  kept[count - 1] = [...kept[count - 1], ...overflow];
+  return { ...node, children: kept };
+};
+
+// Fix up a loaded tree so every Columns node's slots match its count (repairs
+// pages saved before slot-syncing existed). Recurses into nested slots.
+export const normalizeTree = (nodes: SectionNode[]): SectionNode[] =>
+  nodes.map((node) => {
+    const synced = syncColumnSlots(node);
+    return synced.children
+      ? { ...synced, children: synced.children.map((slot) => normalizeTree(slot)) }
+      : synced;
   });
 
 const cloneWithNewIds = (node: SectionNode): SectionNode => ({

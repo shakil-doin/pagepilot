@@ -5,10 +5,15 @@ import { getSettingCached, DEFAULT_SEO, type SeoDefaults } from "@/modules/setti
 import { APP } from "@/config/app.config";
 
 const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
-  const defaults = ((await getSettingCached("seo.defaults")) as SeoDefaults | null) ?? DEFAULT_SEO;
+  const defaults =
+    ((await getSettingCached("seo.defaults").catch(() => null)) as SeoDefaults | null) ?? DEFAULT_SEO;
   const base = (defaults.canonicalBaseUrl || APP.url).replace(/\/$/, "");
 
-  const [pages, posts] = await Promise.all([listPublishedPathsCached(), listPublishedSlugs()]);
+  let pages: Awaited<ReturnType<typeof listPublishedPathsCached>> = [];
+  let posts: Awaited<ReturnType<typeof listPublishedSlugs>> = [];
+  try {
+    [pages, posts] = await Promise.all([listPublishedPathsCached(), listPublishedSlugs()]);
+  } catch {}
 
   const pageEntries = pages
     .filter((page) => !page.seo?.excludeFromSitemap)

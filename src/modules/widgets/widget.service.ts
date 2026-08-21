@@ -1,12 +1,12 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import type { SectionNode } from "@/types";
 
 // ── Global widgets: one instance referenced from many pages ─────────────────
 
-export const getGlobalWidgetCached = cached(
+const globalWidgetCached = cached(
   async (id: string) => {
     const widget = await db.globalWidget.findUnique({ where: { id } });
     return widget ? { id: widget.id, type: widget.type, props: widget.props as Record<string, unknown> } : null;
@@ -15,6 +15,10 @@ export const getGlobalWidgetCached = cached(
   // A per-id tag is added at call sites via page tags; the shared tag keeps it simple
   ["global-widgets"],
 );
+
+// Rendered inline in any page section: a DB failure renders nothing, not a crash.
+export const getGlobalWidgetCached = (id: string) =>
+  withFallback(`global-widget:${id}`, () => globalWidgetCached(id), null);
 
 export const listGlobalWidgets = () => db.globalWidget.findMany({ orderBy: { updatedAt: "desc" } });
 
@@ -74,7 +78,7 @@ export const deleteGlobalWidget = async (userId: string, id: string) => {
 
 // ── Custom widgets: trees of primitives composed in the Studio ──────────────
 
-export const getCustomWidgetCached = cached(
+const customWidgetCached = cached(
   async (id: string) => {
     const widget = await db.customWidget.findUnique({ where: { id } });
     if (!widget) return null;
@@ -91,6 +95,9 @@ export const getCustomWidgetCached = cached(
   ["custom-widget"],
   ["custom-widgets"],
 );
+
+export const getCustomWidgetCached = (id: string) =>
+  withFallback(`custom-widget:${id}`, () => customWidgetCached(id), null);
 
 export const listCustomWidgets = () =>
   db.customWidget.findMany({

@@ -1,3 +1,11 @@
+// Client-side widget registry for the in-document builder canvas.
+//
+// The server registry (registry.ts) can pull server-only modules (e.g.
+// blog-latest reads the DB), which cannot be imported into a client bundle.
+// This mirror imports only the presentational widget components — everything a
+// browser can render on its own. Data-backed widgets (blog-latest, and the
+// global/custom composites resolved server-side) are handled by the canvas
+// renderer as labelled placeholders, so editing never waits on the server.
 import type { z } from "zod";
 import type { WidgetMeta } from "@/types";
 
@@ -23,7 +31,6 @@ import HtmlEmbed from "@/widgets/html-embed";
 import { schema as htmlEmbedSchema, meta as htmlEmbedMeta } from "@/widgets/html-embed/schema";
 import Hero from "@/widgets/hero";
 import { schema as heroSchema, meta as heroMeta } from "@/widgets/hero/schema";
-import FeatureGrid from "@/widgets/feature-grid";
 import { schema as featureGridSchema, meta as featureGridMeta } from "@/widgets/feature-grid/schema";
 import Faq from "@/widgets/faq";
 import { schema as faqSchema, meta as faqMeta } from "@/widgets/faq/schema";
@@ -35,9 +42,7 @@ import TestimonialSlider from "@/widgets/testimonial-slider";
 import { schema as testimonialSliderSchema, meta as testimonialSliderMeta } from "@/widgets/testimonial-slider/schema";
 import PricingTable from "@/widgets/pricing-table";
 import { schema as pricingTableSchema, meta as pricingTableMeta } from "@/widgets/pricing-table/schema";
-import StatsRow from "@/widgets/stats-row";
 import { schema as statsRowSchema, meta as statsRowMeta } from "@/widgets/stats-row/schema";
-import Steps from "@/widgets/steps";
 import { schema as stepsSchema, meta as stepsMeta } from "@/widgets/steps/schema";
 import Comparison from "@/widgets/comparison";
 import { schema as comparisonSchema, meta as comparisonMeta } from "@/widgets/comparison/schema";
@@ -47,24 +52,24 @@ import ContactForm from "@/widgets/contact-form";
 import { schema as contactFormSchema, meta as contactFormMeta } from "@/widgets/contact-form/schema";
 import Newsletter from "@/widgets/newsletter";
 import { schema as newsletterSchema, meta as newsletterMeta } from "@/widgets/newsletter/schema";
-import BlogLatest from "@/widgets/blog-latest";
 import { schema as blogLatestSchema, meta as blogLatestMeta } from "@/widgets/blog-latest/schema";
 
-export type WidgetDef = {
-  // Props flow through schema validation before reaching the component
+export type ClientWidgetDef = {
   component: React.ComponentType<Record<string, unknown>>;
   schema: z.ZodType;
   meta: WidgetMeta;
+  // True when the real widget needs server data, so the canvas shows a
+  // placeholder (real content appears on the published page).
+  serverOnly?: boolean;
 };
 
-const def = (component: unknown, schema: z.ZodType, meta: WidgetMeta): WidgetDef => ({
-  component: component as WidgetDef["component"],
+const def = (component: unknown, schema: z.ZodType, meta: WidgetMeta): ClientWidgetDef => ({
+  component: component as ClientWidgetDef["component"],
   schema,
   meta,
 });
 
-// The single source of truth: one line per widget, mirroring sectionRegistry.
-export const widgetRegistry: Record<string, WidgetDef> = {
+export const clientWidgetRegistry: Record<string, ClientWidgetDef> = {
   heading: def(Heading, headingSchema, headingMeta),
   "rich-text": def(RichText, richTextSchema, richTextMeta),
   image: def(ImageWidget, imageSchema, imageMeta),
@@ -76,19 +81,21 @@ export const widgetRegistry: Record<string, WidgetDef> = {
   container: def(Container, containerSchema, containerMeta),
   "html-embed": def(HtmlEmbed, htmlEmbedSchema, htmlEmbedMeta),
   hero: def(Hero, heroSchema, heroMeta),
-  "feature-grid": def(FeatureGrid, featureGridSchema, featureGridMeta),
+  // Inlines DB-stored icon SVGs server-side → placeholder in the canvas.
+  "feature-grid": { component: () => null, schema: featureGridSchema, meta: featureGridMeta, serverOnly: true },
   faq: def(Faq, faqSchema, faqMeta),
   cta: def(Cta, ctaSchema, ctaMeta),
   "logo-marquee": def(LogoMarquee, logoMarqueeSchema, logoMarqueeMeta),
   "testimonial-slider": def(TestimonialSlider, testimonialSliderSchema, testimonialSliderMeta),
   "pricing-table": def(PricingTable, pricingTableSchema, pricingTableMeta),
-  "stats-row": def(StatsRow, statsRowSchema, statsRowMeta),
-  steps: def(Steps, stepsSchema, stepsMeta),
+  "stats-row": { component: () => null, schema: statsRowSchema, meta: statsRowMeta, serverOnly: true },
+  steps: { component: () => null, schema: stepsSchema, meta: stepsMeta, serverOnly: true },
   comparison: def(Comparison, comparisonSchema, comparisonMeta),
   "team-grid": def(TeamGrid, teamGridSchema, teamGridMeta),
   "contact-form": def(ContactForm, contactFormSchema, contactFormMeta),
   newsletter: def(Newsletter, newsletterSchema, newsletterMeta),
-  "blog-latest": def(BlogLatest, blogLatestSchema, blogLatestMeta),
+  // Reads latest posts on the server; the canvas renders a placeholder for it.
+  "blog-latest": { component: () => null, schema: blogLatestSchema, meta: blogLatestMeta, serverOnly: true },
 };
 
-export const getWidget = (type: string): WidgetDef | undefined => widgetRegistry[type];
+export const getClientWidget = (type: string): ClientWidgetDef | undefined => clientWidgetRegistry[type];

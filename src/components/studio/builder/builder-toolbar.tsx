@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api, ApiClientError } from "@/services/api";
 import {
   ArrowLeft,
   ArrowUUpLeft,
@@ -12,6 +14,7 @@ import {
   CaretDown,
   ClockCounterClockwise,
   Eye,
+  FloppyDisk,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -43,7 +46,9 @@ type Props = {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onSaveDraft: () => void;
   onPublish: (note?: string) => void;
+  onBack: () => void;
   publishing: boolean;
   blockers: PublishBlocker[];
 };
@@ -71,21 +76,43 @@ const BuilderToolbar = ({
   onRedo,
   canUndo,
   canRedo,
+  onSaveDraft,
   onPublish,
+  onBack,
   publishing,
   blockers,
 }: Props) => {
   const [revisionsOpen, setRevisionsOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [seoOpen, setSeoOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const isNoindex = Boolean(
+    page.seo && typeof (page.seo as { robots?: unknown }).robots === "string" &&
+      ((page.seo as { robots: string }).robots).toLowerCase().includes("noindex"),
+  );
+
+  // Status/indexing changes for this page; refetch so the toolbar reflects them.
+  const patchMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.patch(`/api/studio/pages/${pageId}`, body),
+    onSuccess: (_data, body) => {
+      toast.success(
+        body.published === false
+          ? "Page unpublished — it’s a draft now"
+          : body.noindex === true
+            ? "Removed from search indexing"
+            : "Search indexing allowed",
+      );
+      queryClient.invalidateQueries({ queryKey: ["page", pageId] });
+    },
+    onError: (err) => toast.error(err instanceof ApiClientError ? err.message : "Update failed"),
+  });
 
   return (
     <div className="flex h-12 shrink-0 items-center justify-between border-b border-hairline bg-surface px-3">
       <div className="flex min-w-0 items-center gap-2">
-        <Button variant="ghost" size="icon" asChild aria-label="Back to pages">
-          <Link href="/studio/pages">
-            <ArrowLeft size={16} />
-          </Link>
+        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to pages">
+          <ArrowLeft size={16} />
         </Button>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-ink">{page.title}</p>
@@ -147,6 +174,16 @@ const BuilderToolbar = ({
         <Button variant="ghost" size="icon" onClick={() => setRevisionsOpen(true)} aria-label="Revision history">
           <ClockCounterClockwise size={16} />
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onSaveDraft}
+          disabled={saveState === "saving" || saveState === "saved"}
+          title="Save draft (⌘/Ctrl+S)"
+        >
+          <FloppyDisk size={14} className="mr-1.5" />
+          {saveState === "saving" ? "Saving…" : "Save draft"}
+        </Button>
         <Button variant="secondary" size="sm" asChild>
           <a href={`/api/preview?path=${encodeURIComponent(page.path)}`} target="_blank" rel="noreferrer">
             <Eye size={14} className="mr-1.5" />
@@ -165,7 +202,15 @@ const BuilderToolbar = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={() => setPublishOpen(true)}>Publish with note…</DropdownMenuItem>
+              {page.status === "PUBLISHED" ? (
+                <DropdownMenuItem onSelect={() => patchMutation.mutate({ published: false })}>
+                  Unpublish (make draft)
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => patchMutation.mutate({ noindex: !isNoindex })}>
+                {isNoindex ? "Allow search indexing" : "Remove from indexing"}
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setSeoOpen(true)}>SEO settings…</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setRevisionsOpen(true)}>Revision history</DropdownMenuItem>
               {page.status === "PUBLISHED" ? (

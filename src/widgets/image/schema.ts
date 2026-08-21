@@ -10,7 +10,9 @@ export const meta = widgetMeta({
 });
 
 export const schema = z.object({
-  media: field(mediaRef, { control: "media", label: "Image", accept: "image" }),
+  // Optional so a freshly-added image widget doesn't error while you're still
+  // picking a file (publish is blocked separately until an image is chosen).
+  media: field(mediaRef.optional(), { control: "media", label: "Image", accept: "image" }),
   caption: field(z.string().optional(), { control: "text", label: "Caption" }),
   width: field(z.enum(["full", "wide", "narrow"]).default("wide"), {
     control: "segmented",

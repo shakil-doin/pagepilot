@@ -44,6 +44,14 @@ export type PresignResult =
 
 export const presignUpload = async (storageKey: string, _contentType: string): Promise<PresignResult> => {
   if (!APP.storage.isConfigured) {
+    // Local-disk storage needs a writable filesystem — unavailable on Vercel
+    // and most serverless hosts. Fail with a clear message instead of a cryptic
+    // read-only-filesystem error when the ImageKit env vars are missing there.
+    if (process.env.VERCEL) {
+      throw new Error(
+        "Media storage isn't configured. Set IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY and IMAGEKIT_URL_ENDPOINT — local disk uploads aren't available on Vercel.",
+      );
+    }
     return { mode: "local", uploadUrl: "/api/studio/media/upload-local", storageKey };
   }
   return {
@@ -94,20 +102,28 @@ export const getImagekitFile = async (
 };
 
 // Permanent media deletes propagate here: local files are unlinked, ImageKit
-// assets are deleted through the file API by fileId.
+// assets are deleted through the file API by fileId. THROWS on a genuine
+// ImageKit failure so the caller (purgeMedia) can keep that item in the trash
+// and retry, rather than dropping the DB row and orphaning the asset.
 export const deleteObject = async (storageKey: string) => {
   // Local keys look like "media/2026/07/name-abc123.png"; ImageKit fileIds do not
   if (storageKey.startsWith("media/")) {
     await unlink(path.join(process.cwd(), "public", "uploads", storageKey)).catch(() => undefined);
     return;
   }
-  if (!APP.storage.isConfigured) return;
+  if (!APP.storage.isConfigured) {
+    // Can't reach ImageKit to delete; warn loudly but let the DB row go so the
+    // item doesn't get stuck undeletable in the trash.
+    console.warn(`[storage] ImageKit not configured; cannot delete ${storageKey} from ImageKit`);
+    return;
+  }
   const res = await fetch(`${IMAGEKIT_FILES_API}/${encodeURIComponent(storageKey)}`, {
     method: "DELETE",
     headers: { Authorization: imagekitAuthHeader() },
   });
-  // 404 means already gone in ImageKit; anything else is worth surfacing in logs
+  // 404 means already gone in ImageKit → treat as success. Any other non-OK is
+  // a real failure (auth, network, 5xx): throw so purgeMedia can skip/retry it.
   if (!res.ok && res.status !== 404) {
-    console.error(`[storage] ImageKit delete failed for ${storageKey}: ${res.status} ${await res.text()}`);
+    throw new Error(`ImageKit delete failed for ${storageKey}: ${res.status} ${await res.text()}`);
   }
 };

@@ -29,6 +29,7 @@ type PageRow = {
   locked: boolean;
   updatedAt: string;
   publishedRevisionId: string | null;
+  noindex: boolean;
   _count: { revisions: number };
 };
 
@@ -53,6 +54,25 @@ const PagesScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["pages"] });
     },
     onError: (err) => toast.error(err instanceof ApiClientError ? err.message : "Delete failed"),
+  });
+
+  // Status / indexing changes: unpublish (→ draft) and the noindex toggle.
+  const patchMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      api.patch(`/api/studio/pages/${id}`, body),
+    onSuccess: (_data, { body }) => {
+      toast.success(
+        body.published === false
+          ? "Page unpublished — it’s a draft now"
+          : body.noindex === true
+            ? "Removed from search indexing"
+            : body.noindex === false
+              ? "Search indexing allowed"
+              : "Page updated",
+      );
+      queryClient.invalidateQueries({ queryKey: ["pages"] });
+    },
+    onError: (err) => toast.error(err instanceof ApiClientError ? err.message : "Update failed"),
   });
 
   return (
@@ -126,6 +146,18 @@ const PagesScreen = () => {
                             </a>
                           </DropdownMenuItem>
                         ) : null}
+                        {page.status === "PUBLISHED" ? (
+                          <DropdownMenuItem
+                            onSelect={() => patchMutation.mutate({ id: page.id, body: { published: false } })}
+                          >
+                            Unpublish (make draft)
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem
+                          onSelect={() => patchMutation.mutate({ id: page.id, body: { noindex: !page.noindex } })}
+                        >
+                          {page.noindex ? "Allow search indexing" : "Remove from indexing"}
+                        </DropdownMenuItem>
                         <DropdownMenuItem className="text-danger" onSelect={() => setDeleting(page)}>
                           Delete
                         </DropdownMenuItem>

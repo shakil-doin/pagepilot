@@ -10,7 +10,9 @@ export const meta = widgetMeta({
 });
 
 export const schema = z.object({
-  buttons: field(z.array(buttonItem).min(1).default([]), {
+  // Starts with a single button (a non-empty default stops the manifest from
+  // seeding the usual three sample items). Add more from the inspector list.
+  buttons: field(z.array(buttonItem).min(1).default([{ label: "Button", link: { href: "#" }, variant: "primary" }]), {
     control: "list",
     label: "Buttons",
     itemLabel: "label",

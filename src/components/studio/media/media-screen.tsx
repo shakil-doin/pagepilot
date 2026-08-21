@@ -112,6 +112,8 @@ const MediaScreen = () => {
             layout={layout}
             view={view}
             isLoading={listQuery.isLoading}
+            isError={listQuery.isError}
+            onRetry={() => listQuery.refetch()}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
             onOpen={(media) => setDetailId(media.id)}

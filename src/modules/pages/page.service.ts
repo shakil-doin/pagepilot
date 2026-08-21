@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { cached, TAGS, expireTag } from "@/lib/cache";
+import { cached, withFallback, TAGS, expireTag } from "@/lib/cache";
 import { audit } from "@/modules/auth/audit.service";
 import { normalizePath } from "@/lib/utils";
 import { isAdmin } from "@/modules/auth/permissions";
@@ -9,6 +9,12 @@ import type { SectionNode } from "@/types";
 
 // ── Public reads (cached, static-friendly) ───────────────────────────────────
 
+// NOT wrapped in withFallback on purpose: a null return means "this page does
+// not exist" and the route turns it into a 404. A database error must NOT be
+// squashed into null here — that would 404 a page that really exists whenever
+// the DB has a transient hiccup. Let the error propagate (db.ts already retries
+// transient failures) so a real outage surfaces as a retryable error, never a
+// misleading 404. Chrome (theme/menu/settings) still degrades via withFallback.
 export const getPublishedPage = (path: string) =>
   cached(
     async (p: string) => {
@@ -35,7 +41,7 @@ export const getPublishedPage = (path: string) =>
     [TAGS.page(path), TAGS.pages],
   )(path);
 
-export const listPublishedPathsCached = cached(
+const publishedPathsCached = cached(
   async () => {
     const pages = await db.page.findMany({
       where: { status: "PUBLISHED", publishedRevisionId: { not: null } },
@@ -46,6 +52,8 @@ export const listPublishedPathsCached = cached(
   ["published-paths"],
   [TAGS.pages],
 );
+
+export const listPublishedPathsCached = () => withFallback("published-paths", publishedPathsCached, []);
 
 // Draft read for the preview iframe (never cached).
 export const getDraftPage = async (pageId: string) => {
@@ -102,12 +110,18 @@ export const listPages = async (params: {
         locked: true,
         updatedAt: true,
         publishedRevisionId: true,
+        seo: { select: { robots: true } },
         _count: { select: { revisions: true } },
       },
     }),
     db.page.count({ where }),
   ]);
-  return { pages, total, pages_total: Math.max(1, Math.ceil(total / 20)) };
+  // Surface a simple indexing flag so the list can offer a one-click toggle.
+  const rows = pages.map(({ seo, ...page }) => ({
+    ...page,
+    noindex: Boolean(seo?.robots && seo.robots.toLowerCase().includes("noindex")),
+  }));
+  return { pages: rows, total, pages_total: Math.max(1, Math.ceil(total / 20)) };
 };
 
 export const getPageForStudio = async (id: string) => {
@@ -253,6 +267,31 @@ export const archivePage = async (userId: string, id: string) => {
   expireTag(TAGS.page(page.path), TAGS.pages);
   await audit(userId, "page.archive", `Page:${id}`, { path: page.path });
   return page;
+};
+
+// Take a live page back to draft: it stops serving publicly (getPublishedPage
+// filters on status PUBLISHED) but keeps its published-revision pointer so
+// Publish restores it as-is. Reversible, non-destructive.
+export const unpublishPage = async (userId: string, id: string) => {
+  const page = await db.page.update({ where: { id }, data: { status: "DRAFT" } });
+  expireTag(TAGS.page(page.path), TAGS.pages);
+  await audit(userId, "page.unpublish", `Page:${id}`, { path: page.path });
+  return page;
+};
+
+// Toggle search-engine indexing for a page without disturbing its other SEO
+// fields. noindex also drops it from sitemap.xml (a noindexed URL shouldn't be
+// advertised); re-enabling clears both back to the indexable default.
+export const setPageIndexing = async (userId: string, id: string, noindex: boolean) => {
+  await db.seo.upsert({
+    where: { pageId: id },
+    create: { pageId: id, robots: noindex ? "noindex, nofollow" : null, excludeFromSitemap: noindex },
+    update: { robots: noindex ? "noindex, nofollow" : null, excludeFromSitemap: noindex },
+  });
+  const page = await db.page.findUnique({ where: { id }, select: { path: true } });
+  if (page) expireTag(TAGS.page(page.path), TAGS.pages);
+  await audit(userId, noindex ? "page.noindex" : "page.index", `Page:${id}`);
+  return { noindex };
 };
 
 export const deletePage = async (userId: string, id: string) => {

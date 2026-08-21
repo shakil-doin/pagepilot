@@ -50,6 +50,12 @@ export const validateSections = (sections: SectionNode[], mode: ValidateMode): P
             blockers.push({ sectionId: node.id, message: `${widget.meta.name}: ${issue.path.join(".")} ${issue.message}` });
           }
         }
+        // The image widget's media is optional at edit time (so it doesn't error
+        // while unset); enforce it here so an empty image can't be published.
+        if (node.type === "image") {
+          const media = (node.props as Record<string, unknown> | undefined)?.media as { url?: string } | undefined;
+          if (!media?.url) blockers.push({ sectionId: node.id, message: `${widget.meta.name}: pick an image before publishing` });
+        }
         checkAltText(node.id, node.props, widget.meta.key);
       }
 

@@ -11,9 +11,11 @@ const Columns = ({ count, gap, verticalAlign, background, columnSlots = [] }: Pr
   <Section background={background}>
     <div
       className={cn("grid grid-cols-1", gaps[gap], aligns[verticalAlign], {
-        "md:grid-cols-2": count === 2,
-        "md:grid-cols-3": count === 3,
-        "md:grid-cols-2 lg:grid-cols-4": count === 4,
+        "sm:grid-cols-2": count === 2,
+        "sm:grid-cols-2 md:grid-cols-3": count === 3,
+        "sm:grid-cols-2 md:grid-cols-4": count === 4,
+        "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5": count === 5,
+        "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6": count === 6,
       })}
     >
       {Array.from({ length: count }, (_, i) => (

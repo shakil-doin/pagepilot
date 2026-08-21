@@ -10,13 +10,15 @@ export const meta = widgetMeta({
 });
 
 export const schema = z.object({
-  count: field(z.number().int().min(2).max(4).default(2), {
+  count: field(z.number().int().min(2).max(6).default(2), {
     control: "segmented",
     label: "Columns",
     options: [
       { label: "2", value: 2 },
       { label: "3", value: 3 },
       { label: "4", value: 4 },
+      { label: "5", value: 5 },
+      { label: "6", value: 6 },
     ],
     responsive: true,
   }),
