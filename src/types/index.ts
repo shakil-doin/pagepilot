@@ -91,7 +91,17 @@ export type FieldAnnotation = {
 export type WidgetMeta = {
   key: string;
   name: string;
-  category: "Basic" | "Content" | "Marketing" | "Layout";
+  category:
+    | "Basic"
+    | "Content"
+    | "Marketing"
+    | "Layout"
+    | "Hero"
+    | "Proof"
+    | "Compare"
+    | "Pricing"
+    | "Process"
+    | "Education";
   description: string;
   // Primitives power the custom-widget composer
   primitive?: boolean;
